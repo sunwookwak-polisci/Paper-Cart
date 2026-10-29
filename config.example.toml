@@ -1,0 +1,5 @@
+# Copy this file to config.toml in the library folder (printed at startup).
+# In a checkout that folder may be data/, which is gitignored.
+# Leave this blank, or set a contact email there to use Crossref's polite pool.
+# Do not put a real email address in this example file.
+contact_email = ""

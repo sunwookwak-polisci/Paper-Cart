@@ -1,0 +1,137 @@
+{% from "icons.html" import trash %}
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ theme_id }}" data-theme-preference="{{ theme_mode }}" data-theme-light="{{ theme_light }}" data-theme-dark="{{ theme_dark }}" data-font="{{ theme_font }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ heading }} · Paper Cart</title>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var key = "paper-cart-theme";
+      var modes = ["light", "dark", "system"];
+      var lights = ["alucard", "tokyo-light", "ayu-light", "solarized-light"];
+      var darks = ["dracula", "tokyo-night", "ayu-dark", "solarized-dark"];
+      var pref = {
+        mode: modes.indexOf(root.dataset.themePreference) === -1 ? "system" : root.dataset.themePreference,
+        light: root.dataset.themeLight || "alucard",
+        dark: root.dataset.themeDark || "dracula"
+      };
+      if (pref.light === "catppuccin-latte") pref.light = "alucard";
+      if (pref.dark === "catppuccin-mocha") pref.dark = "dracula";
+      var raw = localStorage.getItem(key);
+      if (raw === "light" || raw === "alucard") pref.mode = "light";
+      else if (raw === "dark" || raw === "dracula") pref.mode = "dark";
+      else if (raw === "tokyo-light") {
+        pref.mode = "light";
+        pref.light = "tokyo-light";
+      } else if (raw === "tokyo-night") {
+        pref.mode = "dark";
+        pref.dark = "tokyo-night";
+      } else if (raw === "system") pref.mode = "system";
+      else if (raw) {
+        try {
+          var parsed = JSON.parse(raw);
+          if (modes.indexOf(parsed.mode) !== -1) pref.mode = parsed.mode;
+          if (lights.indexOf(parsed.light) !== -1) pref.light = parsed.light;
+          else if (parsed.light === "catppuccin-latte") pref.light = "alucard";
+          if (darks.indexOf(parsed.dark) !== -1) pref.dark = parsed.dark;
+          else if (parsed.dark === "catppuccin-mocha") pref.dark = "dracula";
+        } catch (error) {}
+      }
+      var mode = pref.mode === "system"
+        ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+        : pref.mode;
+      root.dataset.theme = mode === "dark" ? pref.dark : pref.light;
+      root.dataset.themePreference = pref.mode;
+      root.dataset.themeLight = pref.light;
+      root.dataset.themeDark = pref.dark;
+      root.style.colorScheme = mode;
+      var fontKey = "paper-cart-font";
+      var fonts = ["serif", "sans"];
+      var font = localStorage.getItem(fontKey);
+      if (fonts.indexOf(font) === -1) font = root.dataset.font || "serif";
+      if (fonts.indexOf(font) === -1) font = "serif";
+      root.dataset.font = font;
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/theme.js"></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <div class="wrap">
+    <header>
+      <a class="wordmark" href="/">Paper Cart</a>
+      <div class="header-actions">
+        <div class="header-tools">
+          <div class="theme-menu" data-theme-menu>
+            <button type="button" class="theme-button" data-theme-toggle aria-haspopup="dialog" aria-expanded="false" aria-controls="theme-options" aria-label="Color theme">Theme</button>
+            <div id="theme-options" class="theme-options" role="dialog" aria-label="Color theme" hidden>
+              <div class="theme-section">
+                <p class="theme-group-label">Appearance</p>
+                <div class="appearance-modes" role="radiogroup" aria-label="Appearance">
+                  <button type="button" role="radio" data-theme-mode="light" aria-checked="false">Light</button>
+                  <button type="button" role="radio" data-theme-mode="dark" aria-checked="false">Dark</button>
+                  <button type="button" role="radio" data-theme-mode="system" aria-checked="false">System</button>
+                </div>
+                <p class="theme-hint">System uses your light or dark theme to match this device.</p>
+                <div class="theme-group" role="radiogroup" aria-label="Light theme">
+                  <p class="theme-group-label">Light theme</p>
+                  <button type="button" role="radio" data-theme-light="alucard" aria-checked="false">Alucard (Dracula Light)</button>
+                  <button type="button" role="radio" data-theme-light="tokyo-light" aria-checked="false">Tokyo Light</button>
+                  <button type="button" role="radio" data-theme-light="ayu-light" aria-checked="false">Ayu Light</button>
+                  <button type="button" role="radio" data-theme-light="solarized-light" aria-checked="false">Solarized Light</button>
+                </div>
+                <div class="theme-group" role="radiogroup" aria-label="Dark theme">
+                  <p class="theme-group-label">Dark theme</p>
+                  <button type="button" role="radio" data-theme-dark="dracula" aria-checked="false">Dracula</button>
+                  <button type="button" role="radio" data-theme-dark="tokyo-night" aria-checked="false">Tokyo Night</button>
+                  <button type="button" role="radio" data-theme-dark="ayu-dark" aria-checked="false">Ayu Dark</button>
+                  <button type="button" role="radio" data-theme-dark="solarized-dark" aria-checked="false">Solarized Dark</button>
+                </div>
+              </div>
+              <div class="theme-group" role="radiogroup" aria-label="Font">
+                <p class="theme-group-label">Font</p>
+                <button type="button" role="radio" data-font="serif" aria-checked="false">Serif</button>
+                <button type="button" role="radio" data-font="sans" aria-checked="false">Sans</button>
+                <p class="theme-hint">Serif is Source Serif 4. Sans is Source Sans 3.</p>
+              </div>
+            </div>
+          </div>
+          <a class="settings-link" href="/settings" {% if active|default("") == "settings" %}aria-current="page"{% endif %}>Settings</a>
+        </div>
+        {% if can_quit %}
+        <form method="post" action="/quit">
+          <button type="submit" title="Stop Paper Cart">Quit</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/refresh">
+          {% if refreshing %}
+          <button class="primary" type="submit" data-update-button disabled>Updating…</button>
+          {% else %}
+          <button class="primary" type="submit" data-update-button>Update</button>
+          {% endif %}
+        </form>
+      </div>
+    </header>
+    <nav aria-label="Library">
+      {% for key, href, label in nav %}
+      {% if key == "removed" %}
+      <a class="trash-link" href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ trash() }}<span class="visually-hidden">{{ label }}</span> <span class="count" data-count="{{ key }}">{{ counts[key] }}</span></a>
+      {% else %}
+      <a href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ label }} <span class="count" data-count="{{ key }}">{{ counts[key] }}</span></a>
+      {% endif %}
+      {% endfor %}
+      <a href="/journals" {% if active == "journals" %}aria-current="page"{% endif %}>Journals</a>
+    </nav>
+    <main id="content">
+      {% block main %}{% endblock %}
+    </main>
+  </div>
+  {% if refreshing %}
+  <script src="/static/refresh.js"></script>
+  {% endif %}
+</body>
+</html>

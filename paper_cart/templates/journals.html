@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block main %}
+<h1>Journals</h1>
+<p class="lede">Search Crossref by journal name, add journals to the cart, and subscribe once. The first check looks back 30 days. Later updates look back 14 days.</p>
+{% if notice %}
+<p class="banner" data-notice>{{ notice }}</p>
+{% endif %}
+{% if subscribed_count %}
+<p class="banner">Subscribed to {{ subscribed_count }} {{ "journal" if subscribed_count == 1 else "journals" }}. Recent papers are being fetched and will show under New.</p>
+{% elif refreshing %}
+<p class="banner">Fetching papers. They will show under New.</p>
+{% endif %}
+{% if cart %}
+<h2>Cart</h2>
+<ul class="results">
+  {% for item in cart %}
+  <li class="card">
+    <h3>{{ item.title }}</h3>
+    <p class="meta">{{ item.issns | join(", ") }}{% if item.publisher %} · {{ item.publisher }}{% endif %}</p>
+    <form method="post" action="/journals/cart/remove">
+      <input type="hidden" name="item_id" value="{{ item.id }}">
+      <input type="hidden" name="q" value="{{ query }}">
+      <button type="submit">Remove</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+<form class="cart-checkout" method="post" action="/journals/checkout">
+  <button class="primary" type="submit">Subscribe</button>
+</form>
+{% endif %}
+<form class="search" method="get" action="/journals">
+  <label for="q">Journal name</label>
+  <div class="search-row">
+    <input id="q" name="q" type="search" value="{{ query }}" placeholder="Nature, Science, PLOS ONE">
+    <button class="primary" type="submit">Search</button>
+  </div>
+</form>
+{% if error %}
+<p class="banner">{{ error }}</p>
+{% endif %}
+{% if query|length >= 2 and not error %}
+  <h2>Results</h2>
+  {% if results %}
+  <form method="post" action="/journals/cart">
+    <input type="hidden" name="q" value="{{ query }}">
+    <ul class="results">
+      {% for result in results %}
+      <li class="card">
+        <h3>{{ result.title }}</h3>
+        <p class="meta">{{ result.issns | join(", ") }}{% if result.publisher %} · {{ result.publisher }}{% endif %}</p>
+        <input type="hidden" name="title" value="{{ result.title }}">
+        <input type="hidden" name="publisher" value="{{ result.publisher }}">
+        <input type="hidden" name="issns" value="{{ result.issns_csv }}">
+        {% if result.subscribed %}
+        <p class="subscribed">Subscribed</p>
+        {% elif result.in_cart %}
+        <label class="check">
+          <input type="checkbox" checked disabled aria-label="{{ result.title }} is in the cart">
+          <span class="subscribed">In cart</span>
+        </label>
+        {% else %}
+        <label class="check">
+          <input type="checkbox" name="pick" value="{{ loop.index0 }}" aria-label="Select {{ result.title }}">
+          <span>Select</span>
+        </label>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% if selectable %}
+    <button class="primary" type="submit">Add to cart</button>
+    {% endif %}
+  </form>
+  {% else %}
+  <p class="empty">No journals matched.</p>
+  {% endif %}
+{% endif %}
+<h2>Subscribed</h2>
+{% if journals %}
+<ul class="results">
+  {% for journal in journals %}
+  <li class="card">
+    <h3>{{ journal.title }}</h3>
+    <p class="meta">{{ journal.issns | join(", ") }}{% if journal.publisher %} · {{ journal.publisher }}{% endif %}</p>
+    <p class="meta">{% if journal.last_checked_at %}Last checked {{ journal.last_checked_at.replace("T", " ").replace("+00:00", " UTC") }}{% else %}Not checked yet{% endif %}</p>
+    <form method="post" action="/journals/{{ journal.id }}/unsubscribe">
+      <button type="submit">Unsubscribe</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+<h2>Export abstracts</h2>
+<p class="lede">Download a Markdown file of abstracts from the most recent issues of journals you follow. This fetches from Crossref, so it includes papers older than New. Some publishers omit abstracts; those papers are still listed.</p>
+<form class="export-form" method="post" action="/journals/export">
+  <ul class="results">
+    {% for journal in journals %}
+    <li class="card">
+      <label class="check">
+        <input type="checkbox" name="journal_id" value="{{ journal.id }}" aria-label="Export {{ journal.title }}">
+        <span>{{ journal.title }}</span>
+      </label>
+    </li>
+    {% endfor %}
+  </ul>
+  <label for="issues">Number of recent issues</label>
+  <div class="search-row">
+    <input id="issues" name="issues" type="number" min="1" max="{{ max_issues }}" value="4" required>
+    <button class="primary" type="submit">Export abstracts</button>
+  </div>
+</form>
+<script src="/static/export.js"></script>
+{% else %}
+<p class="empty">No journals yet.</p>
+{% endif %}
+{% endblock %}

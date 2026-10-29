@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block main %}
+<h1>Settings</h1>
+<p class="lede">Quit and start again to use a saved folder.</p>
+{% if notice %}
+<p class="banner" data-notice>{{ notice }}</p>
+{% endif %}
+{% if error %}
+<p class="banner" data-error>{{ error }}</p>
+{% endif %}
+<h2>Current folder</h2>
+<p class="path" data-current-folder>{{ current_folder }}</p>
+{% if override_note %}
+<p class="meta" data-override>{{ override_note }}</p>
+{% endif %}
+{% if pending_folder %}
+<h2>Next start</h2>
+<p class="path" data-pending-folder>{{ pending_folder }}</p>
+{% endif %}
+<form class="settings-form" method="post" action="/settings">
+  <label for="data-dir">Library folder</label>
+  <div class="search-row">
+    <input id="data-dir" name="data_dir" type="text" value="{{ form_folder }}" spellcheck="false" autocomplete="off" autocapitalize="off" required>
+    <button class="primary" type="submit">Save</button>
+  </div>
+</form>
+<h2>Library files</h2>
+<p>These changes happen now.</p>
+{% if libraries %}
+<ul class="library-list" data-library-list>
+  {% for name in libraries %}
+  <li class="library-row" data-library="{{ name }}" {% if name == active_library %}data-library-active{% endif %}>
+    <span class="library-name">{{ name }}</span>
+    {% if name == active_library %}
+    <span class="meta" data-library-state>In use</span>
+    {% else %}
+    <form method="post" action="/settings/libraries/active">
+      <input type="hidden" name="library" value="{{ name }}">
+      <button type="submit">Use</button>
+    </form>
+    {% endif %}
+    <form class="library-rename" method="post" action="/settings/libraries/rename">
+      <input type="hidden" name="library" value="{{ name }}">
+      <label class="visually-hidden" for="rename-{{ loop.index }}">New name for {{ name }}</label>
+      <input id="rename-{{ loop.index }}" type="text" name="name" value="{{ name }}" spellcheck="false" autocomplete="off" autocapitalize="off" required>
+      <button type="submit">Rename</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="empty">No library files in this folder yet.</p>
+{% endif %}
+<h2>Export</h2>
+<p><a class="button" href="/settings/libraries/export">Download {{ active_library }}</a></p>
+<h2>Import</h2>
+<p>Add a file, or replace one with the same name.</p>
+<form class="settings-form" method="post" action="/settings/libraries/import" enctype="multipart/form-data">
+  <label for="library-upload">Library file</label>
+  <input id="library-upload" name="upload" type="file" accept=".sqlite,application/vnd.sqlite3,application/x-sqlite3" required>
+  <label for="library-name">File name</label>
+  <input id="library-name" name="name" type="text" value="{{ import_name }}" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Same as the uploaded file">
+  <label class="check">
+    <input type="checkbox" name="confirm" value="yes" required>
+    Add or replace this library file
+  </label>
+  <button class="primary" type="submit">Import</button>
+</form>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% from "icons.html" import arrow_down, arrow_up, grip, trash %}
+{% block head %}
+{% if refreshing %}
+<noscript><meta http-equiv="refresh" content="4"></noscript>
+{% endif %}
+{% endblock %}
+{% block main %}
+<h1>{{ heading }}</h1>
+{% if busy %}
+<p class="banner">An update is already running.</p>
+{% elif refreshing %}
+<p class="banner" data-refresh-banner>Fetching papers… New ones will appear when the update finishes.</p>
+{% elif show_report and report %}
+<div class="banner">
+  {% if report.checked %}
+  <p>{{ report.added }} new {{ "paper" if report.added == 1 else "papers" }} from {{ report.checked }} {{ "journal" if report.checked == 1 else "journals" }}.</p>
+  {% elif not report.errors %}
+  <p>No subscribed journals to check.</p>
+  {% endif %}
+  {% if report.errors %}
+  <ul>
+    {% for error in report.errors %}
+    <li>{{ error }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}
+<form class="search" method="get" action="{{ current_path }}">
+  <label for="keywords">Keywords</label>
+  <div class="search-row">
+    <input id="keywords" name="q" type="search" value="{{ query }}" placeholder="Title, author, abstract">
+    <button type="submit">Search</button>
+  </div>
+</form>
+<div class="toolbar">
+  <form method="post" action="/view">
+    <input type="hidden" name="next" value="{{ list_path }}">
+    <input type="hidden" name="group" value="{{ '0' if grouped else '1' }}">
+    <button type="submit" {% if grouped %}class="is-current" aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>Group by journal</button>
+  </form>
+  {% if grouped %}
+  <form method="post" action="/view">
+    <input type="hidden" name="next" value="{{ list_path }}">
+    {% for value, label in (("date", "Date"), ("alpha", "Alphabetical"), ("custom", "Custom")) %}
+    <button type="submit" name="group_sort" value="{{ value }}" {% if group_sort == value %}class="is-current" aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>{{ label }}</button>
+    {% endfor %}
+  </form>
+  {% endif %}
+</div>
+{% if grouped and group_sort == "custom" and order_journals %}
+<details class="order-panel" id="journal-order-panel"{% if order_open %} open{% endif %}>
+  <summary>Journal order</summary>
+<ul class="results" id="journal-order">
+  {% for journal in order_journals %}
+  <li class="card order-row" data-journal-id="{{ journal.id }}">
+    <button type="button" class="drag-handle" aria-label="Drag to reorder {{ journal.title }}">{{ grip() }}</button>
+    <span class="order-title">{{ journal.title }}</span>
+    <form method="post" action="/journals/order">
+      <input type="hidden" name="journal_id" value="{{ journal.id }}">
+      <input type="hidden" name="next" value="{{ list_path }}">
+      <button type="submit" name="direction" value="up" class="arrow-button" aria-label="Move {{ journal.title }} up"{% if loop.first %} disabled{% endif %}>{{ arrow_up() }}</button>
+      <button type="submit" name="direction" value="down" class="arrow-button" aria-label="Move {{ journal.title }} down"{% if loop.last %} disabled{% endif %}>{{ arrow_down() }}</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+</details>
+{% endif %}
+{% macro paper_card(paper, show_journal, list_path, status_labels, can_remove) %}
+<article class="card">
+  <div class="card-head">
+    <input type="checkbox" class="bulk-pick" form="bulk-form" name="doi" value="{{ paper.doi }}" data-bulk-pick aria-label="Select {{ paper.title }}">
+    <h3><a href="{{ paper.url }}" target="_blank" rel="noopener noreferrer">{{ paper.title }}</a></h3>
+  </div>
+  {% if paper.authors %}<p class="authors">{{ paper.authors }}</p>{% endif %}
+  <p class="meta">
+    {% if show_journal %}{{ paper.journal_title }} · {% endif %}
+    {% if paper.published_date %}{{ paper.published_date }} · {% endif %}
+    <a href="{{ paper.url }}" target="_blank" rel="noopener noreferrer">{{ paper.doi }}</a>
+  </p>
+  {% if paper.abstract %}
+  <details>
+    <summary>Abstract</summary>
+    <p>{{ paper.abstract }}</p>
+  </details>
+  {% endif %}
+  <form class="status-form" method="post" action="/papers/status">
+    <input type="hidden" name="doi" value="{{ paper.doi }}">
+    <input type="hidden" name="next" value="{{ list_path }}">
+    {% for value, label in status_labels %}
+    <button type="submit" name="status" value="{{ value }}" {% if paper.status == value %}class="is-current" aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>{{ label }}</button>
+    {% endfor %}
+    {% if can_remove %}
+    <button type="submit" name="status" value="removed" class="icon-button" aria-label="Remove" title="Remove">{{ trash() }}</button>
+    {% endif %}
+  </form>
+</article>
+{% endmacro %}
+{% if papers %}
+<form class="bulk-bar" id="bulk-form" method="post" action="/papers/status/bulk" data-bulk>
+  <input type="hidden" name="next" value="{{ list_path }}">
+  <label class="bulk-all" hidden data-bulk-all-label><input type="checkbox" data-bulk-all> Select all shown</label>
+  <span class="bulk-count" data-bulk-count>None selected</span>
+  <span class="bulk-actions">
+    {% for value, label in status_labels if value != active %}
+    <button type="submit" name="status" value="{{ value }}">{{ label }}</button>
+    {% endfor %}
+    {% if active == "dismissed" %}
+    <button type="submit" name="status" value="removed" class="icon-button" aria-label="Remove selected" title="Remove selected">{{ trash() }}</button>
+    {% endif %}
+  </span>
+</form>
+{% endif %}
+<div data-paper-list data-status="{{ active }}" data-empty="{% if query %}No papers matched.{% else %}{{ empty }}{% endif %}">
+{% if grouped and groups %}
+  {% for journal_title, group_papers in groups %}
+  <h2 class="journal-name">{{ journal_title }}</h2>
+  {% for paper in group_papers %}
+  {{ paper_card(paper, false, list_path, status_labels, active == "dismissed") }}
+  {% endfor %}
+  {% endfor %}
+{% elif papers %}
+  {% for paper in papers %}
+  {{ paper_card(paper, true, list_path, status_labels, active == "dismissed") }}
+  {% endfor %}
+{% elif query %}
+<p class="empty">No papers matched.</p>
+{% else %}
+<p class="empty">{{ empty }}</p>
+{% endif %}
+</div>
+<script src="/static/status.js"></script>
+<script src="/static/order.js"></script>
+<script src="/static/bulk.js"></script>
+{% endblock %}
