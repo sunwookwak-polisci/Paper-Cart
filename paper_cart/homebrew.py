@@ -2,9 +2,10 @@
 
 uv tool installs and git checkouts are left alone. The newer version comes
 from the local tap formula when that file is present, and otherwise from
-`brew outdated` with auto-update and the formulae API turned off. This
-module does not contact the network itself. `brew` is stopped after a
-short timeout so startup can continue.
+`brew outdated` with auto-update and the formulae API turned off. The local
+tap only changes when Homebrew updates it, so when it has nothing newer the
+latest GitHub release is asked for too, at most once a day. Both `brew` and
+that request are stopped after a short timeout so startup can continue.
 """
 
 from __future__ import annotations
@@ -14,13 +15,21 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
+import httpx
+
 from paper_cart import __version__
+from paper_cart.config import default_data_dir
 
 FORMULA = "paper-cart"
 TAP = "sunwookwak-polisci/paper-cart"
 BREW_TIMEOUT_SECONDS = 2
+RELEASES_URL = "https://api.github.com/repos/sunwookwak-polisci/Paper-Cart/releases/latest"
+RELEASE_TIMEOUT_SECONDS = 2
+RELEASE_CHECK_SECONDS = 24 * 60 * 60
+RELEASE_CHECK_FILE = "release-check.json"
 
 _VERSION_LINE = re.compile(r'(?m)^  version "([^"]+)"')
 _URL_VERSION = re.compile(
@@ -53,6 +62,9 @@ def newer_homebrew_version(install_path: Path | None = None) -> str | None:
         available = _brew_outdated_version()
     if available and _is_newer(available, __version__):
         return available
+    released = _latest_release_version()
+    if released and _is_newer(released, __version__):
+        return released
     return None
 
 
@@ -269,6 +281,57 @@ def _version_from_json(data: object) -> str | None:
         current = item.get("current_version")
         if isinstance(current, str) and _SAFE_VERSION.fullmatch(current):
             return current
+    return None
+
+
+def _latest_release_version(now: float | None = None) -> str | None:
+    """Latest GitHub release, asked for at most once a day and remembered in between."""
+    now = time.time() if now is None else now
+    path = default_data_dir() / RELEASE_CHECK_FILE
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        saved = None
+    if isinstance(saved, dict):
+        checked = saved.get("checked")
+        if isinstance(checked, (int, float)) and 0 <= now - checked < RELEASE_CHECK_SECONDS:
+            version = saved.get("version")
+            if isinstance(version, str) and _SAFE_VERSION.fullmatch(version):
+                return version
+            return None
+    version = _fetch_release_version()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"checked": now, "version": version}), encoding="utf-8")
+    except OSError:
+        pass
+    return version
+
+
+def _fetch_release_version() -> str | None:
+    try:
+        response = httpx.get(
+            RELEASES_URL,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": f"paper-cart/{__version__}",
+            },
+            timeout=RELEASE_TIMEOUT_SECONDS,
+        )
+    except httpx.HTTPError:
+        return None
+    if response.status_code != 200:
+        return None
+    try:
+        data = response.json()
+    except ValueError:
+        return None
+    tag = data.get("tag_name") if isinstance(data, dict) else None
+    if not isinstance(tag, str):
+        return None
+    version = tag.removeprefix("v")
+    if _SAFE_VERSION.fullmatch(version):
+        return version
     return None
 
 
