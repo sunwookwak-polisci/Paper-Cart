@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.background import BackgroundTask
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from paper_cart import __version__
 from paper_cart.config import (
     ConfigError,
     load_contact_email,
@@ -81,6 +82,7 @@ from paper_cart.refresh import refresh_journals
 APP_ID = "paper-cart"
 PACKAGE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(PACKAGE / "templates"))
+templates.env.globals["app_version"] = __version__
 
 VIEWS = {
     "new": ("New", "Nothing new. Subscribe to a journal, then update to fetch recent papers."),
