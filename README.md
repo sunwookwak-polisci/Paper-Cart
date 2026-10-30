@@ -25,17 +25,13 @@
 
 <table>
   <tr>
-    <td width="37%" valign="top">
+    <td width="50%" valign="top">
       <img src="docs/images/screenshot-journals.png" alt="Searching for and following journals">
       <p align="center"><sub>Follow journals</sub></p>
     </td>
-    <td width="37%" valign="top">
+    <td width="50%" valign="top">
       <img src="docs/images/screenshot-theme.png" alt="Theme menu with light and dark themes">
       <p align="center"><sub>Pick a theme and font</sub></p>
-    </td>
-    <td width="26%" valign="top" rowspan="2">
-      <img src="docs/images/screenshot-mobile.png" alt="Paper Cart in a narrow window">
-      <p align="center"><sub>Fits a narrow window</sub></p>
     </td>
   </tr>
   <tr>
