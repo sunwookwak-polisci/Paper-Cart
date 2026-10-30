@@ -1,3 +1,3 @@
 """Follow journals and track the papers you mean to read."""
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
