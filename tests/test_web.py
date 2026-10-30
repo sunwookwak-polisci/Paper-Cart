@@ -12,6 +12,16 @@ def test_safe_next_rejects_offsite_urls():
     assert safe_next("//example.com") == "/"
 
 
+def test_header_shows_running_version(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from paper_cart import __version__
+
+    client = TestClient(create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1")
+    for path in ("/", "/journals", "/settings"):
+        assert f'<span class="app-version">v{__version__}</span>' in client.get(path).text
+
+
 def test_theme_switch_and_palette_are_served(tmp_path):
     from fastapi.testclient import TestClient
 

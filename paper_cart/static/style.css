@@ -242,6 +242,20 @@ header {
   text-decoration: none;
 }
 
+.brand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.45rem;
+}
+
+.app-version {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .header-tools {
   display: flex;
   align-items: center;
