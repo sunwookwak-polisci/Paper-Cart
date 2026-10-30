@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import signal
 import socket
 import threading
 import webbrowser
@@ -55,6 +56,15 @@ def choose_port(start: int = PORT, tries: int = PORT_TRIES, *, host: str = HOST)
     )
 
 
+class QuietServer(uvicorn.Server):
+    async def shutdown(self, sockets: list[socket.socket] | None = None) -> None:
+        await super().shutdown(sockets)
+        # A second Ctrl+C makes uvicorn skip the app's lifespan shutdown, and
+        # Starlette then logs the lifespan task's cancellation as an error.
+        if self.force_exit:
+            await self.lifespan.shutdown()
+
+
 def open_browser(url: str, delay: float = 0.6) -> None:
     opener = threading.Timer(delay, lambda: webbrowser.open(url))
     opener.daemon = True
@@ -93,7 +103,7 @@ def main(argv: list[str] | None = None) -> None:
     data_dir = data_dir.resolve()
     application = create_app(data_dir)
     application.state.data_dir_source = source
-    server = uvicorn.Server(uvicorn.Config(application, host=HOST, port=port, log_level="warning"))
+    server = QuietServer(uvicorn.Config(application, host=HOST, port=port, log_level="warning"))
 
     def shutdown() -> None:
         server.should_exit = True
@@ -106,5 +116,15 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Library folder: {data_dir}")
     print(f"Library file: {application.state.db_path.name}")
     print("Press Ctrl+C here, or use Quit in the app, to stop it.")
-    server.run()
+    interrupted = False
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        interrupted = True
+    finally:
+        # Another Ctrl+C while Python exits ends the process without a traceback.
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+    if interrupted:
+        print("\nPaper Cart has stopped.")
+        raise SystemExit(130)
     print("Paper Cart has stopped.")
