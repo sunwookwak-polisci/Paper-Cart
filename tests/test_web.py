@@ -15,7 +15,9 @@ def test_safe_next_rejects_offsite_urls():
 def test_theme_switch_and_palette_are_served(tmp_path):
     from fastapi.testclient import TestClient
 
-    client = TestClient(create_app(tmp_path, search=_search, fetch=_fetch))
+    client = TestClient(
+        create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1"
+    )
     page = client.get("/")
     assert 'src="/static/theme.js"' in page.text
     assert 'aria-label="Color theme"' in page.text
@@ -144,7 +146,9 @@ def test_theme_switch_and_palette_are_served(tmp_path):
 def test_appearance_persists_across_reopen(tmp_path):
     from fastapi.testclient import TestClient
 
-    client = TestClient(create_app(tmp_path, search=_search, fetch=_fetch))
+    client = TestClient(
+        create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1"
+    )
     saved = client.post(
         "/appearance",
         data={"mode": "dark", "light": "ayu-light", "dark": "ayu-dark", "font": "sans"},
@@ -157,7 +161,9 @@ def test_appearance_persists_across_reopen(tmp_path):
     assert 'data-theme-dark="ayu-dark"' in page.text
     assert 'data-font="sans"' in page.text
 
-    reopened = TestClient(create_app(tmp_path, search=_search, fetch=_fetch))
+    reopened = TestClient(
+        create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1"
+    )
     again = reopened.get("/")
     assert 'data-theme-preference="dark"' in again.text
     assert 'data-theme="ayu-dark"' in again.text
@@ -167,7 +173,9 @@ def test_appearance_persists_across_reopen(tmp_path):
 def test_catppuccin_appearance_falls_back(tmp_path):
     from fastapi.testclient import TestClient
 
-    client = TestClient(create_app(tmp_path, search=_search, fetch=_fetch))
+    client = TestClient(
+        create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1"
+    )
     saved = client.post(
         "/appearance",
         data={
@@ -190,7 +198,7 @@ def test_subscribe_update_and_progress(tmp_path):
     from fastapi.testclient import TestClient
 
     app = create_app(tmp_path, search=_search, fetch=_fetch)
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
 
     search = client.get("/journals?q=example")
     assert search.status_code == 200
@@ -326,7 +334,7 @@ def test_checkout_returns_before_crossref(tmp_path):
         return []
 
     app = create_app(tmp_path, search=_search, fetch=fetch)
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     added = client.post(
         "/journals/cart",
         data={
@@ -356,7 +364,7 @@ def test_cart_keeps_journals_across_searches(tmp_path):
     from fastapi.testclient import TestClient
 
     app = create_app(tmp_path, search=_catalog_search, fetch=_fetch)
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     first = client.post(
         "/journals/cart",
         data={
@@ -433,7 +441,7 @@ def test_paper_list_search_and_group_order(tmp_path):
             _hit("10.1000/dec", "December essay", "2026-12-01", "Grace Hopper", "seasonal note"),
         ],
     )
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
 
     flat = client.get("/")
     assert flat.text.index("December essay") < flat.text.index("November paper")
@@ -577,7 +585,7 @@ def test_export_abstracts_fetches_older_issues_without_changing_library(tmp_path
         "Example Journal",
         [_hit("10.1000/library", "Already new", "2026-10-01", "Ada Lovelace", "library abstract")],
     )
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
 
     page = client.get("/journals")
     assert "Export abstracts" in page.text
@@ -645,7 +653,7 @@ def test_export_abstracts_empty_and_busy(tmp_path):
         issns=("1234-5678",),
         publisher="",
     )
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     empty = client.post(
         "/journals/export",
         data={"journal_id": str(journal_id), "issues": "4"},
@@ -772,7 +780,7 @@ def test_update_runs_in_background(tmp_path):
         issns=("1234-5678",),
         publisher="",
     )
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     assert client.get("/refresh/status").json() == {"refreshing": False}
 
     started_at = time.monotonic()
@@ -823,7 +831,7 @@ def test_bulk_status_moves_selected_papers(tmp_path):
             for n in range(3)
         ],
     )
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     inbox = client.get("/")
     assert 'id="bulk-form"' in inbox.text
     assert inbox.text.count('form="bulk-form"') == 3
@@ -888,7 +896,7 @@ def test_settings_chooses_the_folder_for_the_next_launch(tmp_path, monkeypatch):
     )
     (current / "marker.txt").write_text("keep", encoding="utf-8")
     before = app.state.db_path.read_bytes()
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
 
     home = client.get("/")
     assert home.status_code == 200
@@ -963,7 +971,7 @@ def test_settings_keeps_a_library_already_in_the_chosen_folder(tmp_path, monkeyp
     )
     before_current = app.state.db_path.read_bytes()
     before_chosen = (chosen / "library.sqlite").read_bytes()
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     saved = client.post(
         "/settings",
         data={"data_dir": str(chosen)},
@@ -985,7 +993,7 @@ def test_settings_names_a_startup_override(tmp_path, monkeypatch):
     monkeypatch.setattr("paper_cart.config.default_data_dir", lambda: tmp_path / "user")
     app = create_app(tmp_path, search=_search, fetch=_fetch)
     app.state.data_dir_source = "env"
-    page = TestClient(app).get("/settings")
+    page = TestClient(app, base_url="http://127.0.0.1").get("/settings")
     assert "This session was started with PAPER_CART_DATA." in page.text
     assert f'data-current-folder>{tmp_path.resolve()}<' in page.text.replace("\n", "")
 
@@ -994,7 +1002,7 @@ def test_health_and_quit(tmp_path):
     from fastapi.testclient import TestClient
 
     app = create_app(tmp_path, search=_search, fetch=_fetch)
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     assert client.get("/healthz").json() == {"app": "paper-cart"}
     assert 'action="/quit"' not in client.get("/").text
     assert client.post("/quit").status_code == 404
@@ -1020,7 +1028,7 @@ def test_settings_lists_library_files_and_exports_the_active_one(tmp_path):
     init_db(tmp_path / "notes.sqlite")
     set_setting(tmp_path / "notes.sqlite", "shelf", "other")
     other_before = (tmp_path / "notes.sqlite").read_bytes()
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
 
     page = client.get("/settings")
     assert page.status_code == 200
@@ -1065,7 +1073,7 @@ def test_settings_switches_and_renames_without_touching_other_files(tmp_path):
         publisher="",
     )
     active_before = app.state.db_path.read_bytes()
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
 
     switched = client.post(
         "/settings/libraries/active",
@@ -1101,7 +1109,7 @@ def test_settings_switches_and_renames_without_touching_other_files(tmp_path):
     assert get_setting(app.state.db_path, "shelf", "missing") == "missing"
     again = create_app(tmp_path, search=_search, fetch=_fetch)
     assert again.state.db_path.name == "archive.sqlite"
-    assert "Shelf Two" in TestClient(again).get("/journals").text
+    assert "Shelf Two" in TestClient(again, base_url="http://127.0.0.1").get("/journals").text
 
     empty = client.post(
         "/settings/libraries/rename",
@@ -1148,7 +1156,7 @@ def test_settings_import_validates_before_replacing_and_keeps_other_files(tmp_pa
     )
     other_before = (tmp_path / "notes.sqlite").read_bytes()
     active_before = app.state.db_path.read_bytes()
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
 
     refused = client.post(
         "/settings/libraries/import",
@@ -1207,7 +1215,7 @@ def test_library_file_changes_wait_while_an_update_is_running(tmp_path):
     app = create_app(tmp_path, search=_search, fetch=_fetch)
     before = app.state.db_path.read_bytes()
     app.state.refresh_jobs = 1
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://127.0.0.1")
     page = client.post(
         "/settings/libraries/rename",
         data={"library": "library.sqlite", "name": "archive.sqlite"},
@@ -1217,3 +1225,110 @@ def test_library_file_changes_wait_while_an_update_is_running(tmp_path):
     assert app.state.db_path.read_bytes() == before
     assert (tmp_path / "library.sqlite").is_file()
     assert not (tmp_path / "archive.sqlite").exists()
+
+
+def test_cross_site_writes_are_blocked(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from paper_cart.db import get_setting
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    client = TestClient(app, base_url="http://127.0.0.1")
+    library_before = app.state.db_path.read_bytes()
+    appearance = {
+        "mode": "dark",
+        "light": "alucard",
+        "dark": "dracula",
+        "font": "sans",
+    }
+    cross_site = {
+        "Origin": "https://evil.example",
+        "Sec-Fetch-Site": "cross-site",
+    }
+
+    blocked = client.post("/appearance", data=appearance, headers=cross_site)
+    assert blocked.status_code == 403
+    assert blocked.text == "Cross-site request blocked."
+    assert get_setting(app.state.db_path, "theme_mode", "system") == "system"
+
+    no_origin = client.post(
+        "/appearance",
+        data=appearance,
+        headers={"Sec-Fetch-Site": "cross-site"},
+    )
+    assert no_origin.status_code == 403
+    assert get_setting(app.state.db_path, "theme_mode", "system") == "system"
+
+    folder = tmp_path / "created-by-cross-site" / "deep"
+    settings = client.post(
+        "/settings",
+        data={"data_dir": str(folder)},
+        headers=cross_site,
+    )
+    assert settings.status_code == 403
+    assert not folder.exists()
+
+    imported = client.post(
+        "/settings/libraries/import",
+        data={"name": "library.sqlite", "confirm": "yes"},
+        files={"upload": ("library.sqlite", b"not a library", "application/octet-stream")},
+        headers=cross_site,
+    )
+    assert imported.status_code == 403
+    assert app.state.db_path.read_bytes() == library_before
+
+    assert client.post("/quit", headers=cross_site).status_code == 403
+
+    browser = TestClient(app, base_url="http://127.0.0.1:8000")
+    allowed = browser.post(
+        "/appearance",
+        data=appearance,
+        headers={"Origin": "http://127.0.0.1:8000"},
+    )
+    assert allowed.status_code == 204
+    assert get_setting(app.state.db_path, "theme_mode", "system") == "dark"
+
+    for site in ("same-origin", "none"):
+        kept = client.post(
+            "/appearance",
+            data={"mode": "light", "light": "alucard", "dark": "dracula", "font": "serif"},
+            headers={"Sec-Fetch-Site": site},
+        )
+        assert kept.status_code == 204
+
+    opened = client.get("/healthz", headers=cross_site)
+    assert opened.status_code == 200
+    assert opened.json() == {"app": "paper-cart"}
+
+
+def test_only_loopback_hosts_are_accepted(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    library_before = app.state.db_path.read_bytes()
+    rebind = TestClient(app, base_url="http://rebind.evil.example:8000")
+
+    for path in ("/settings", "/settings/libraries/export", "/healthz"):
+        rejected = rebind.get(path)
+        assert rejected.status_code == 400
+        assert b"SQLite format 3" not in rejected.content
+
+    folder = tmp_path / "created-by-cross-site" / "deep"
+    written = rebind.post(
+        "/settings",
+        data={"data_dir": str(folder)},
+        headers={"Origin": "http://rebind.evil.example:8000"},
+    )
+    assert written.status_code == 400
+    assert not folder.exists()
+    assert app.state.db_path.read_bytes() == library_before
+
+    local = TestClient(app, base_url="http://localhost")
+    assert local.get("/healthz").status_code == 200
+    assert local.get("/settings").status_code == 200
+    saved = local.post(
+        "/appearance",
+        data={"mode": "dark", "light": "alucard", "dark": "dracula", "font": "sans"},
+        headers={"Origin": "http://localhost"},
+    )
+    assert saved.status_code == 204

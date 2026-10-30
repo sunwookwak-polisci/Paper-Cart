@@ -3,6 +3,7 @@
 # Setup in the repository that publishes releases:
 #   - variable HOMEBREW_TAP: the tap repo, sunwookwak-polisci/homebrew-paper-cart
 #   - secret HOMEBREW_TAP_TOKEN: a fine-grained token with contents write on that tap repo
+# The tap update runs in the homebrew-tap environment.
 # Without them, the release is still created and the tap step is skipped.
 name: Release
 
@@ -16,10 +17,17 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: homebrew-tap
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, node24
+        with:
+          persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3, node24
+        with:
+          version: "0.13.6"
+          python-version: "3.13"
+          enable-cache: false
 
       - name: Check the tag matches the package version
         run: |

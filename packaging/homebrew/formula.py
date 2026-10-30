@@ -33,8 +33,8 @@ class PaperCart < Formula
   desc "Follow journals you choose and keep the papers you mean to read"
   homepage "https://github.com/{repo}"
   url "https://github.com/{repo}/releases/download/v{version}/paper_cart-{version}-py3-none-any.whl", using: :nounzip
-  version "{version}"
   sha256 "{sha256}"
+  license "MIT"
 
   depends_on "uv" => :build
   depends_on :macos
@@ -45,7 +45,7 @@ class PaperCart < Formula
     ENV["UV_CACHE_DIR"] = buildpath/"uv-cache"
     ENV["UV_PYTHON_DOWNLOADS"] = "never"
     resources.each {{ |r| r.stage(buildpath/"wheels") }}
-    system "uv", "venv", "--python", Formula["python@3.13"].opt_bin/"python3.13", libexec
+    system "uv", "venv", "--python", formula_opt_bin("python@3.13")/"python3.13", libexec
     system "uv", "pip", "install", "--python", libexec/"bin/python", "--no-index", "--no-deps",
            *Dir[buildpath/"*.whl", buildpath/"wheels/*.whl"]
     bin.install_symlink libexec/"bin/paper-cart"
@@ -125,10 +125,11 @@ def resource_blocks(lock_path: Path = ROOT / "uv.lock") -> str:
         else:
             arm.append(_block(package["name"], picked["arm"], "    "))
             intel.append(_block(package["name"], picked["intel"], "    "))
-    blocks = list(common)
+    blocks = []
     if arm:
         blocks.append("  on_arm do\n" + "\n".join(arm) + "  end\n")
         blocks.append("  on_intel do\n" + "\n".join(intel) + "  end\n")
+    blocks.extend(common)
     return "\n".join(blocks)
 
 

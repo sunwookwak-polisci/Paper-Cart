@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.background import BackgroundTask
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from paper_cart.config import (
     ConfigError,
@@ -554,6 +555,20 @@ def create_app(
                 "Choose a library file below.",
             )
         return RedirectResponse("/settings?unavailable=1", status_code=303)
+
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+
+    @app.middleware("http")
+    async def same_origin_writes(request: Request, call_next):
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            origin = request.headers.get("origin")
+            site = request.headers.get("sec-fetch-site")
+            expected = f"http://{request.headers.get('host', '')}"
+            if (origin is not None and origin != expected) or (
+                origin is None and site not in (None, "same-origin", "none")
+            ):
+                return Response("Cross-site request blocked.", status_code=403)
+        return await call_next(request)
 
     return app
 

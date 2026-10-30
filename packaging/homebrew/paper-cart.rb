@@ -4,12 +4,36 @@ class PaperCart < Formula
   desc "Follow journals you choose and keep the papers you mean to read"
   homepage "https://github.com/sunwookwak-polisci/Paper-Cart"
   url "https://github.com/sunwookwak-polisci/Paper-Cart/releases/download/v0.1.0/paper_cart-0.1.0-py3-none-any.whl", using: :nounzip
-  version "0.1.0"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  license "MIT"
 
   depends_on "uv" => :build
   depends_on :macos
   depends_on "python@3.13"
+
+  on_arm do
+    resource "markupsafe" do
+      url "https://files.pythonhosted.org/packages/9c/d9/5f7756922cdd676869eca1c4e3c0cd0df60ed30199ffd775e319089cb3ed/markupsafe-3.0.3-cp313-cp313-macosx_11_0_arm64.whl", using: :nounzip
+      sha256 "116bb52f642a37c115f517494ea5feb03889e04df47eeff5b130b1808ce7c219"
+    end
+
+    resource "pydantic-core" do
+      url "https://files.pythonhosted.org/packages/21/43/6323b1f8b217780454c61304bcd2b38ae4762f50754414124603ccc90bb2/pydantic_core-2.46.5-cp313-cp313-macosx_11_0_arm64.whl", using: :nounzip
+      sha256 "f332f0e72a5a0400141f830744e141bf9f97917878dbe968669e8a7fefea78ff"
+    end
+  end
+
+  on_intel do
+    resource "markupsafe" do
+      url "https://files.pythonhosted.org/packages/38/2f/907b9c7bbba283e68f20259574b13d005c121a0fa4c175f9bed27c4597ff/markupsafe-3.0.3-cp313-cp313-macosx_10_13_x86_64.whl", using: :nounzip
+      sha256 "e1cf1972137e83c5d4c136c43ced9ac51d0e124706ee1c8aa8532c1287fa8795"
+    end
+
+    resource "pydantic-core" do
+      url "https://files.pythonhosted.org/packages/f5/37/5abe39a8372a61d3dc3c1338fc504281c01b32fdb3169cd7187153b56d3e/pydantic_core-2.46.5-cp313-cp313-macosx_10_12_x86_64.whl", using: :nounzip
+      sha256 "b7ca9034437b6022f941f4857459562ee00a560b97e7cce8a0ec5a74fc6766e0"
+    end
+  end
 
   resource "annotated-doc" do
     url "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl", using: :nounzip
@@ -101,35 +125,11 @@ class PaperCart < Formula
     sha256 "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf"
   end
 
-  on_arm do
-    resource "markupsafe" do
-      url "https://files.pythonhosted.org/packages/9c/d9/5f7756922cdd676869eca1c4e3c0cd0df60ed30199ffd775e319089cb3ed/markupsafe-3.0.3-cp313-cp313-macosx_11_0_arm64.whl", using: :nounzip
-      sha256 "116bb52f642a37c115f517494ea5feb03889e04df47eeff5b130b1808ce7c219"
-    end
-
-    resource "pydantic-core" do
-      url "https://files.pythonhosted.org/packages/21/43/6323b1f8b217780454c61304bcd2b38ae4762f50754414124603ccc90bb2/pydantic_core-2.46.5-cp313-cp313-macosx_11_0_arm64.whl", using: :nounzip
-      sha256 "f332f0e72a5a0400141f830744e141bf9f97917878dbe968669e8a7fefea78ff"
-    end
-  end
-
-  on_intel do
-    resource "markupsafe" do
-      url "https://files.pythonhosted.org/packages/38/2f/907b9c7bbba283e68f20259574b13d005c121a0fa4c175f9bed27c4597ff/markupsafe-3.0.3-cp313-cp313-macosx_10_13_x86_64.whl", using: :nounzip
-      sha256 "e1cf1972137e83c5d4c136c43ced9ac51d0e124706ee1c8aa8532c1287fa8795"
-    end
-
-    resource "pydantic-core" do
-      url "https://files.pythonhosted.org/packages/f5/37/5abe39a8372a61d3dc3c1338fc504281c01b32fdb3169cd7187153b56d3e/pydantic_core-2.46.5-cp313-cp313-macosx_10_12_x86_64.whl", using: :nounzip
-      sha256 "b7ca9034437b6022f941f4857459562ee00a560b97e7cce8a0ec5a74fc6766e0"
-    end
-  end
-
   def install
     ENV["UV_CACHE_DIR"] = buildpath/"uv-cache"
     ENV["UV_PYTHON_DOWNLOADS"] = "never"
     resources.each { |r| r.stage(buildpath/"wheels") }
-    system "uv", "venv", "--python", Formula["python@3.13"].opt_bin/"python3.13", libexec
+    system "uv", "venv", "--python", formula_opt_bin("python@3.13")/"python3.13", libexec
     system "uv", "pip", "install", "--python", libexec/"bin/python", "--no-index", "--no-deps",
            *Dir[buildpath/"*.whl", buildpath/"wheels/*.whl"]
     bin.install_symlink libexec/"bin/paper-cart"
