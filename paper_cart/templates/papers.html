@@ -40,6 +40,13 @@
     <input type="hidden" name="group" value="{{ '0' if grouped else '1' }}">
     <button type="submit" {% if grouped %}class="is-current" aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>Group by journal</button>
   </form>
+  {% if papers | selectattr("abstract") | first %}
+  <form method="post" action="/view" data-abstracts>
+    <input type="hidden" name="next" value="{{ list_path }}">
+    <input type="hidden" name="abstracts" value="{{ '0' if abstracts_open else '1' }}">
+    <button type="submit" {% if abstracts_open %}class="is-current" aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>Expand abstracts</button>
+  </form>
+  {% endif %}
   {% if grouped %}
   <form method="post" action="/view">
     <input type="hidden" name="next" value="{{ list_path }}">
@@ -80,7 +87,7 @@
   </span>
   {%- endfor %}
 {% endmacro %}
-{% macro paper_card(paper, show_journal, list_path, status_groups, active) %}
+{% macro paper_card(paper, show_journal, list_path, status_groups, active, abstracts_open) %}
 <article class="card">
   <div class="card-head">
     <input type="checkbox" class="bulk-pick" form="bulk-form" name="doi" value="{{ paper.doi }}" data-bulk-pick aria-label="Select {{ paper.title }}">
@@ -93,7 +100,7 @@
     <a href="{{ paper.url }}" target="_blank" rel="noopener noreferrer">{{ paper.doi }}</a>
   </p>
   {% if paper.abstract %}
-  <details>
+  <details class="abstract"{% if abstracts_open %} open{% endif %}>
     <summary>Abstract</summary>
     <p>{{ paper.abstract }}</p>
   </details>
@@ -118,12 +125,12 @@
   {% for journal_title, group_papers in groups %}
   <h2 class="journal-name">{{ journal_title }}</h2>
   {% for paper in group_papers %}
-  {{ paper_card(paper, false, list_path, status_groups, active) }}
+  {{ paper_card(paper, false, list_path, status_groups, active, abstracts_open) }}
   {% endfor %}
   {% endfor %}
 {% elif papers %}
   {% for paper in papers %}
-  {{ paper_card(paper, true, list_path, status_groups, active) }}
+  {{ paper_card(paper, true, list_path, status_groups, active, abstracts_open) }}
   {% endfor %}
 {% elif query %}
 <p class="empty">No papers matched.</p>
@@ -134,4 +141,5 @@
 <script src="/static/status.js"></script>
 <script src="/static/order.js"></script>
 <script src="/static/bulk.js"></script>
+<script src="/static/abstracts.js"></script>
 {% endblock %}

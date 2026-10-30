@@ -348,6 +348,7 @@ def create_app(
         group: str = Form(""),
         group_sort: str = Form(""),
         order_open: str = Form(""),
+        abstracts: str = Form(""),
     ):
         db_path = request.app.state.db_path
         if group in {"0", "1"}:
@@ -358,6 +359,8 @@ def create_app(
                 ensure_custom_order(db_path)
         if order_open in {"0", "1"}:
             set_setting(db_path, "order_open", order_open)
+        if abstracts in {"0", "1"}:
+            set_setting(db_path, "abstracts_open", abstracts)
         return RedirectResponse(safe_next(next), status_code=303)
 
     @app.post("/journals/order")
@@ -658,6 +661,7 @@ def _papers(request: Request, status: str):
             group_sort=group_sort,
             order_journals=order_journals if group_sort == "custom" else [],
             order_open=get_setting(db_path, "order_open", "1") == "1",
+            abstracts_open=get_setting(db_path, "abstracts_open", "0") == "1",
             query=query,
             list_path=_list_path(request.url.path, query),
             empty=empty,

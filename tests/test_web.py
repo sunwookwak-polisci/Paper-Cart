@@ -513,6 +513,37 @@ def test_paper_list_search_and_group_order(tmp_path):
     assert 'id="journal-order-panel" open' in client.get("/").text
 
 
+def test_expand_abstracts_toggle_is_remembered(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    db_path = tmp_path / "library.sqlite"
+    journal_id = subscribe_journal(db_path, title="Example Journal", issns=("1234-5678",), publisher="")
+    client = TestClient(app, base_url="http://127.0.0.1")
+    assert "Expand abstracts" not in client.get("/").text
+
+    upsert_papers(
+        db_path,
+        journal_id,
+        "Example Journal",
+        [_hit("10.1000/a", "Paper A", "2026-09-01", "Ada Lovelace", "about neurons")],
+    )
+    folded = client.get("/")
+    assert "Expand abstracts" in folded.text
+    assert '<details class="abstract">' in folded.text
+    assert 'name="abstracts" value="1"' in folded.text
+
+    expanded = client.post("/view", data={"abstracts": "1", "next": "/"}, follow_redirects=False)
+    assert expanded.headers["location"] == "/"
+    page = client.get("/")
+    assert '<details class="abstract" open>' in page.text
+    assert 'name="abstracts" value="0"' in page.text
+    assert '<details class="abstract" open>' in client.get("/?q=neurons").text
+
+    client.post("/view", data={"abstracts": "0", "next": "/"}, follow_redirects=False)
+    assert '<details class="abstract">' in client.get("/").text
+
+
 def test_export_abstracts_fetches_older_issues_without_changing_library(tmp_path):
     from fastapi.testclient import TestClient
 
