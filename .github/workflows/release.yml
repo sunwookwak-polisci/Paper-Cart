@@ -5,6 +5,7 @@
 #   - secret HOMEBREW_TAP_TOKEN: a fine-grained token with contents write on that tap repo
 # The tap update runs in the homebrew-tap environment.
 # Without them, the release is still created and the tap step is skipped.
+# The job runs only in the public repo, so a tag pushed to a private test copy does nothing.
 name: Release
 
 on:
@@ -16,6 +17,7 @@ permissions:
 
 jobs:
   release:
+    if: github.repository == 'sunwookwak-polisci/Paper-Cart'
     runs-on: ubuntu-latest
     environment: homebrew-tap
     steps:
