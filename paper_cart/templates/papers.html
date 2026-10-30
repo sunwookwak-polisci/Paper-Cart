@@ -40,19 +40,19 @@
     <input type="hidden" name="group" value="{{ '0' if grouped else '1' }}">
     <button type="submit" {% if grouped %}class="is-current" aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>Group by journal</button>
   </form>
-  {% if papers | selectattr("abstract") | first %}
-  <form method="post" action="/view" data-abstracts>
-    <input type="hidden" name="next" value="{{ list_path }}">
-    <input type="hidden" name="abstracts" value="{{ '0' if abstracts_open else '1' }}">
-    <button type="submit" {% if abstracts_open %}class="is-current" aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>Expand abstracts</button>
-  </form>
-  {% endif %}
   {% if grouped %}
   <form method="post" action="/view">
     <input type="hidden" name="next" value="{{ list_path }}">
     {% for value, label in (("date", "Date"), ("alpha", "Alphabetical"), ("custom", "Custom")) %}
     <button type="submit" name="group_sort" value="{{ value }}" {% if group_sort == value %}class="is-current" aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>{{ label }}</button>
     {% endfor %}
+  </form>
+  {% endif %}
+  {% if papers | selectattr("abstract") | first %}
+  <form class="abstracts-toggle" method="post" action="/view" data-abstracts>
+    <input type="hidden" name="next" value="{{ list_path }}">
+    <input type="hidden" name="abstracts" value="{{ '0' if abstracts_open else '1' }}">
+    <button type="submit" {% if abstracts_open %}class="is-current" aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>Expand abstracts</button>
   </form>
   {% endif %}
 </div>

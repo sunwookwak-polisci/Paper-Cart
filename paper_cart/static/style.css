@@ -588,6 +588,8 @@ button.icon-button .trash-icon {
   margin: 0 0 1.25rem;
 }
 
+.abstracts-toggle { margin-left: auto; }
+
 .cart-checkout { margin: 0 0 1.25rem; }
 
 .export-form { margin: 0 0 1.25rem; }
