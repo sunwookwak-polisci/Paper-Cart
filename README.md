@@ -1,24 +1,214 @@
 # Paper Cart
 
-Paper Cart follows academic journals you select and keeps a private reading list on your computer. New articles come from the [Crossref](https://api.crossref.org) works API, the same source [Paper Picnic](https://paper-picnic.com/about) uses. Journal RSS is not part of this version.
+**Paper Cart follows the academic journals you choose and keeps a private reading list of their new articles on your own computer.**
 
-You run it locally. Nothing stays online after you quit, and there is no account server to host.
+![Paper Cart showing a list of new journal articles](docs/images/screenshot-papers.png)
 
-## Install
+<p align="center">
+  <a href="#what-it-does">What it does</a> ·
+  <a href="#install-on-a-mac">Install</a> ·
+  <a href="#using-paper-cart">Use</a> ·
+  <a href="#update-paper-cart">Update</a> ·
+  <a href="#uninstall">Uninstall</a> ·
+  <a href="#where-your-library-lives">Your library</a> ·
+  <a href="#for-developers">For developers</a>
+</p>
 
-Install Paper Cart with [uv](https://docs.astral.sh/uv/):
+## What it does
+
+- **Follows the journals you pick.** Search for a journal by name and subscribe. New articles arrive from [Crossref](https://www.crossref.org), the open registry of scholarly articles.
+- **Keeps a reading list.** Mark each article as Read later, Reading, Done, or Dismiss it.
+- **Stays private.** Your reading list is saved in a file on your computer. There is no account, no sign-up, and no cloud service.
+- **Helps you find things.** Search your lists by keyword, group articles by journal, and file many articles at once.
+- **Exports abstracts.** Download the titles, authors, DOIs, and abstracts from recent issues as one Markdown file.
+- **Looks the way you like.** Light, dark, or match your Mac, with eight color themes and a serif or sans font.
+
+<table>
+  <tr>
+    <td width="37%" valign="top">
+      <img src="docs/images/screenshot-journals.png" alt="Searching for and following journals">
+      <p align="center"><sub>Follow journals</sub></p>
+    </td>
+    <td width="37%" valign="top">
+      <img src="docs/images/screenshot-theme.png" alt="Theme menu with light and dark themes">
+      <p align="center"><sub>Pick a theme and font</sub></p>
+    </td>
+    <td width="26%" valign="top" rowspan="2">
+      <img src="docs/images/screenshot-mobile.png" alt="Paper Cart in a narrow window">
+      <p align="center"><sub>Fits a narrow window</sub></p>
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <img src="docs/images/screenshot-dark.png" alt="Paper Cart in dark mode">
+      <p align="center"><sub>Dark mode</sub></p>
+    </td>
+    <td valign="top">
+      <img src="docs/images/screenshot-settings.png" alt="Settings for library files, export, and import">
+      <p align="center"><sub>Manage library files</sub></p>
+    </td>
+  </tr>
+</table>
+
+## Install on a Mac
+
+Paper Cart is installed with [Homebrew](https://brew.sh), a free and widely used tool for installing apps on a Mac. You'll copy and paste a few commands into **Terminal**, an app that comes with every Mac. You only need to do steps 1 to 3 once.
+
+Paper Cart works on Macs with Apple silicon or Intel chips.
+
+### Step 1. Open Terminal
+
+1. Press **Command (⌘) + Space** to open Spotlight search.
+2. Type **Terminal** and press **Return**.
+
+A window with a blinking cursor opens. To run a command from this page, copy it, click in the Terminal window, paste it with **⌘ + V**, and press **Return**.
+
+You can also find Terminal in Finder under **Applications → Utilities**.
+
+### Step 2. Install Homebrew
+
+If you already have Homebrew, skip to step 3. Not sure? Run this command. If it prints a version number, you have it.
 
 ```bash
-brew install uv
+brew --version
+```
+
+To install Homebrew:
+
+1. Go to [brew.sh](https://brew.sh) and copy the install command shown near the top of the page.
+2. Paste it into Terminal and press **Return**.
+3. When asked, type your Mac login password and press **Return**. Nothing appears on screen while you type the password. That's normal.
+4. Press **Return** again if the installer asks you to continue. It may also download Apple's Command Line Tools, which can take a while.
+5. When it finishes, look at the last lines it printed. If you see **Next steps** with commands to run, copy and paste those commands into Terminal too. Macs with Apple silicon usually need this.
+6. Quit Terminal (**⌘ + Q**), open it again, and run `brew --version` to check that Homebrew works.
+
+### Step 3. Install Paper Cart
+
+```bash
+brew install sunwookwak-polisci/paper-cart/paper-cart
+```
+
+Homebrew downloads Paper Cart and everything it needs. When it's done, it prints a short note that says where your library is kept.
+
+### Step 4. Start Paper Cart
+
+```bash
+paper-cart
+```
+
+Paper Cart opens in your web browser. If the browser doesn't open by itself, go to **[http://127.0.0.1:8000](http://127.0.0.1:8000)**. This address points to your own computer, so only you can see the page.
+
+Leave the Terminal window open while you use Paper Cart. Terminal also shows the address and where your library is saved.
+
+A few things worth knowing:
+
+- Next time, just open Terminal and run `paper-cart` again.
+- If Paper Cart is already running, `paper-cart` opens the page that's already there.
+- If another program is already using that address, Paper Cart picks the next free one and prints it in Terminal.
+
+### Stop Paper Cart
+
+Click **Quit** at the top of the Paper Cart page. You can also click the Terminal window and press **Control + C**. Your library is saved either way.
+
+## Using Paper Cart
+
+### Follow your first journals
+
+1. Click **Journals** at the top of the page.
+2. Type a journal name, such as *Nature*, and click **Search**.
+3. Tick the journals you want and click **Add to cart**.
+4. Click **Subscribe**.
+
+Paper Cart starts loading articles from the last 30 days. They show up under **New** when loading finishes, and you can keep using Paper Cart in the meantime.
+
+Paper Cart checks for new articles each time it starts. Click **Update** to check again at any time.
+
+### Keep track of what you read
+
+Each article has one status. Choosing a status is how you bookmark it.
+
+| Status | What it means |
+| --- | --- |
+| **New** | Just arrived |
+| **Read later** | Saved for later |
+| **Reading** | In progress |
+| **Done** | Finished |
+| **Dismissed** | Hidden from New and never brought back as new |
+| **Removed** | Out of every other list. Remove an article from the Dismissed list with its trash icon. |
+
+### Find articles
+
+- Each list has a **Keywords** box. Every word you type must appear in the title, authors, abstract, journal name, or DOI.
+- Tick the box beside articles, or **Select all shown**, to move many at once. Combined with a keyword search, this files or dismisses a whole batch in one step.
+- Articles are listed newest first. Turn on **Group by journal** to group them, then order the groups by **Date**, **Alphabetical**, or **Custom**. With Custom, drag a journal by its handle, or use the arrows, to set your own order.
+
+### Export abstracts
+
+On the **Journals** page, choose one or more journals and how many recent issues to include. Paper Cart downloads a Markdown file with the titles, authors, DOIs, and abstracts. It can include articles older than the ones under New, and it doesn't change any reading status. Some publishers don't share abstracts. Those articles are still listed with their DOI.
+
+## Update Paper Cart
+
+```bash
+brew upgrade paper-cart
+```
+
+If Paper Cart is running, quit it and start it again after the upgrade. Your library is not touched.
+
+## Uninstall
+
+```bash
+brew uninstall paper-cart
+```
+
+You can also remove the Paper Cart source from Homebrew with `brew untap sunwookwak-polisci/paper-cart`.
+
+Uninstalling leaves your library in place, so you can reinstall later and pick up where you left off. To delete your library too, open its folder as described below and move the **Paper Cart** folder to the Trash.
+
+## Where your library lives
+
+On a Mac, your library is kept in this folder.
+
+```text
+~/Library/Application Support/Paper Cart
+```
+
+The `~` stands for your home folder. To open it in Finder, choose **Go → Go to Folder…** (or press **Shift + ⌘ + G**), paste the path above, and press **Return**. Terminal also prints the folder each time Paper Cart starts.
+
+Upgrading, reinstalling, or uninstalling Paper Cart leaves this folder alone.
+
+### Settings
+
+- **Use a different folder.** Settings can save another folder for your library. Paper Cart uses it the next time it starts. Your previous library stays where it is, and a folder without a library starts empty.
+- **Keep more than one library.** One folder can hold several library files. Settings lists them and lets you choose which one is in use, rename one, export the one in use, or import a library file. Switching, renaming, and importing take effect right away.
+- **Import safely.** Importing a file with the same name as an existing one asks you to confirm first, and the existing file is kept until the upload checks out as a valid library.
+
+### Optional contact email for Crossref
+
+Crossref offers faster, more reliable service to people who include a contact email with their requests. To do that, create a file named `config.toml` in your library folder with your `contact_email`. [`config.example.toml`](config.example.toml) shows the format. The address is sent only to Crossref.
+
+## How Paper Cart finds new articles
+
+Paper Cart asks the free [Crossref API](https://api.crossref.org) for recent articles from each journal you follow. It's the same source [Paper Picnic](https://paper-picnic.com/about) uses. Journal RSS feeds are not used in this version.
+
+- The first check for a new journal looks back 30 days. Later checks look back 14 days, so articles that are indexed late still show up.
+- Each article is stored once, by its DOI. Later updates refresh its details and leave your reading status alone.
+- Editorials, corrections, errata, retractions, tables of contents, and issue information are skipped.
+- Abstracts appear when the publisher shares them with Crossref. The DOI link is always there.
+
+## For developers
+
+### Install with uv
+
+Paper Cart can also be installed from source with [uv](https://docs.astral.sh/uv/). This also works on Linux.
+
+```bash
 uv tool install git+https://github.com/sunwookwak-polisci/Paper-Cart
 paper-cart
 ```
 
-On Linux, install uv with its [installer](https://docs.astral.sh/uv/getting-started/installation/) instead of Homebrew. Update later with `uv tool upgrade paper-cart`. The Homebrew formula and release steps are in [`packaging/homebrew/`](packaging/homebrew/README.md).
+Update with `uv tool upgrade paper-cart`. On Linux the library is kept in `~/.local/share/paper-cart`.
 
-## Run from a checkout
-
-Install [uv](https://docs.astral.sh/uv/), then:
+### Run from a checkout
 
 ```bash
 git clone https://github.com/sunwookwak-polisci/Paper-Cart.git
@@ -27,58 +217,25 @@ uv sync
 uv run paper-cart
 ```
 
-`uv run python -m paper_cart` still works too.
+`uv run python -m paper_cart` works too. Add `--no-browser` to start the server without opening a browser.
 
-The app listens on [http://127.0.0.1:8000](http://127.0.0.1:8000) and opens that page in your browser. If Paper Cart is already running, starting it again just opens the existing page. If another program holds port 8000, it uses the next free port and prints the address. Press Quit in the app, or Ctrl+C in the terminal, to stop it.
-
-Updates run in the background while the app is open: once at startup, and again when you press Update. You can keep reading while papers load; the list refreshes when the update finishes.
-
-## Where your library lives
-
-On a Mac the library is kept in `~/Library/Application Support/Paper Cart` (on Linux, `~/.local/share/paper-cart`). The folder is printed when Paper Cart starts, and upgrading or reinstalling leaves it alone.
-
-Settings in the app can choose a different folder. That choice is saved in the per-user folder and used the next time Paper Cart starts. The previous library stays where it is. A chosen folder with no library yet starts empty. `paper-cart --data-dir /path/to/folder` and `PAPER_CART_DATA` override the saved folder. A checkout that already has `data/library.sqlite` keeps using it when started from the repository root.
-
-One folder can hold several library files. Settings lists those sqlite files and chooses which one is in use. That choice is saved in the folder, and the next start opens the same file. Export downloads the file in use. Import adds a sqlite file in that folder, or replaces the file with the same name after you confirm and the upload checks out as a library. The previous file is kept until the upload is valid, and the other sqlite files stay in place. Rename changes one file's name in that folder. Empty names and names that match an existing file are refused. If you rename the file in use, the next start still opens it. Switching, renaming, and importing take effect without a restart. Changing the folder still waits until the next start.
-
-Optional: to use Crossref's polite pool, create `config.toml` in the library folder with your `contact_email`. [`config.example.toml`](config.example.toml) shows the format. The address is sent only to Crossref.
-
-## How updates work
-
-Search finds journals through Crossref `GET /journals?query=`. Select one or more results, add them to the cart, and subscribe once. That returns immediately. Recent papers for the new journals are fetched in the background and show up under New. Update still checks every subscribed journal. Both loads use `journal-article` records for each ISSN with `from-created-date` and `from-pub-date`. The first check looks back 30 days. Later checks look back 14 days, so a paper indexed late can still appear. Papers are stored by DOI. A later update refreshes metadata and leaves your reading status alone.
-
-Titles that are editorials, corrections, errata, retractions, tables of contents, or issue information are skipped. Abstracts are shown when Crossref includes them. Some publishers omit abstracts; the DOI link is still there.
-
-## Reading progress
-
-Each paper has one status. Choosing a status is the bookmark.
-
-- **New** — just arrived
-- **Read later**
-- **Reading**
-- **Done**
-- **Dismissed** — hidden from New, and not imported again as new
-- **Removed** — out of the other lists. A paper can be removed only from Dismissed. The library link is a trash icon.
-
-## Finding papers
-
-Each list has a keyword search for the papers on that list. Every word has to match the title, authors, abstract, journal name, or DOI.
-
-Tick the box beside papers, or Select all shown, to move several at once. Combined with a keyword search, this dismisses or files a whole batch in one step.
-
-Papers are ordered by date, newest first. Group by journal is off until you turn it on. Group order can follow the date of the newest paper in the group, alphabetical order, or a custom order. Drag a journal by its handle, or use the arrows, to set that custom order. The journal order list can be folded, and it stays folded after that choice is saved.
-
-On the Journals page you can export abstracts for one or more subscribed journals. Choose how many recent issues to include, counting back from the latest. The download is a Markdown file of titles, authors, DOIs, and abstracts from Crossref. It includes papers older than New. Reading status is left alone. Some publishers omit abstracts; those papers are still listed.
-
-## Tests
+Run the tests with:
 
 ```bash
 uv run pytest
 ```
 
-## Keeping your data out of commits
+### Choosing the library folder
+
+`paper-cart --data-dir /path/to/folder` and the `PAPER_CART_DATA` environment variable override the folder saved in Settings. A checkout that already has `data/library.sqlite` keeps using it when started from the repository root.
+
+### Keeping your data out of commits
 
 In a checkout, `data/` and any `.sqlite` file are gitignored, so a library or `config.toml` kept there, including a contact email, stays out of commits. Keep journal lists, reading status, and email addresses out of source, tests, and docs.
+
+### Releases
+
+The Homebrew formula and release steps are described in [`packaging/homebrew/`](packaging/homebrew/README.md).
 
 ## License
 
