@@ -14,6 +14,7 @@ import uvicorn
 
 from paper_cart import __version__
 from paper_cart.config import resolve_data_dir
+from paper_cart.homebrew import announce_homebrew_update
 from paper_cart.web import APP_ID, create_app, start_startup_refresh
 
 HOST = "127.0.0.1"
@@ -91,6 +92,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    announce_homebrew_update()
     port, already_running = choose_port()
     url = f"http://{HOST}:{port}"
     if already_running:
