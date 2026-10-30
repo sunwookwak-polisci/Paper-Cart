@@ -410,6 +410,10 @@ nav a[aria-current="page"] {
   font-weight: 650;
 }
 
+.journals-link {
+  margin-left: auto;
+}
+
 .trash-link {
   display: inline-flex;
   align-items: center;
