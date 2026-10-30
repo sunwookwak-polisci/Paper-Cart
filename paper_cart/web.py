@@ -100,12 +100,10 @@ NAV = (
     ("removed", "/removed", "Removed"),
 )
 
-STATUS_LABELS = (
-    ("new", "New"),
-    ("read_later", "Read later"),
-    ("reading", "Reading"),
-    ("done", "Done"),
-    ("dismissed", "Dismiss"),
+# Sorting calls sit on the left of each paper; reading progress sits on the right.
+STATUS_GROUPS = (
+    (("new", "New"), ("read_later", "Read later"), ("dismissed", "Dismiss")),
+    (("reading", "Reading"), ("done", "Done")),
 )
 
 
@@ -845,7 +843,7 @@ def _page_context(request: Request, **extra):
     context = {
         "counts": counts,
         "nav": NAV,
-        "status_labels": STATUS_LABELS,
+        "status_groups": STATUS_GROUPS,
         "current_path": request.url.path,
         "report": request.app.state.last_report,
         "refreshing": bool(request.app.state.refreshing),
