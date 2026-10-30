@@ -494,6 +494,15 @@ details p { margin: 0.45rem 0 0; }
 
 .status-form { margin-top: 0.85rem; }
 
+.status-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.status-group + .status-group { margin-left: auto; }
+
 button, input {
   font: inherit;
 }
@@ -521,7 +530,6 @@ button.icon-button {
   align-items: center;
   justify-content: center;
   width: 2rem;
-  margin-left: auto;
   padding-right: 0;
   padding-left: 0;
 }
@@ -775,14 +783,7 @@ button.arrow-button:disabled {
 
 .bulk-count { color: var(--muted); }
 
-.bulk-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-left: auto;
-}
-
-.bulk-actions button:disabled { opacity: 0.45; cursor: default; }
+.bulk-bar button:disabled { opacity: 0.45; cursor: default; }
 
 .settings-link {
   font-family: var(--sans);

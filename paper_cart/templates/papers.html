@@ -68,7 +68,19 @@
 </ul>
 </details>
 {% endif %}
-{% macro paper_card(paper, show_journal, list_path, status_labels, can_remove) %}
+{% macro status_buttons(status_groups, active, remove_label) %}
+  {%- for group in status_groups %}
+  <span class="status-group">
+    {%- for value, label in group if value != active %}
+    <button type="submit" name="status" value="{{ value }}">{{ label }}</button>
+    {%- endfor %}
+    {%- if loop.first and remove_label %}
+    <button type="submit" name="status" value="removed" class="icon-button" aria-label="{{ remove_label }}" title="{{ remove_label }}">{{ trash() }}</button>
+    {%- endif %}
+  </span>
+  {%- endfor %}
+{% endmacro %}
+{% macro paper_card(paper, show_journal, list_path, status_groups, active) %}
 <article class="card">
   <div class="card-head">
     <input type="checkbox" class="bulk-pick" form="bulk-form" name="doi" value="{{ paper.doi }}" data-bulk-pick aria-label="Select {{ paper.title }}">
@@ -89,12 +101,7 @@
   <form class="status-form" method="post" action="/papers/status">
     <input type="hidden" name="doi" value="{{ paper.doi }}">
     <input type="hidden" name="next" value="{{ list_path }}">
-    {% for value, label in status_labels %}
-    <button type="submit" name="status" value="{{ value }}" {% if paper.status == value %}class="is-current" aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>{{ label }}</button>
-    {% endfor %}
-    {% if can_remove %}
-    <button type="submit" name="status" value="removed" class="icon-button" aria-label="Remove" title="Remove">{{ trash() }}</button>
-    {% endif %}
+    {{ status_buttons(status_groups, active, "Remove" if active == "dismissed" else "") }}
   </form>
 </article>
 {% endmacro %}
@@ -103,14 +110,7 @@
   <input type="hidden" name="next" value="{{ list_path }}">
   <label class="bulk-all" hidden data-bulk-all-label><input type="checkbox" data-bulk-all> Select all shown</label>
   <span class="bulk-count" data-bulk-count>None selected</span>
-  <span class="bulk-actions">
-    {% for value, label in status_labels if value != active %}
-    <button type="submit" name="status" value="{{ value }}">{{ label }}</button>
-    {% endfor %}
-    {% if active == "dismissed" %}
-    <button type="submit" name="status" value="removed" class="icon-button" aria-label="Remove selected" title="Remove selected">{{ trash() }}</button>
-    {% endif %}
-  </span>
+  {{ status_buttons(status_groups, active, "Remove selected" if active == "dismissed" else "") }}
 </form>
 {% endif %}
 <div data-paper-list data-status="{{ active }}" data-empty="{% if query %}No papers matched.{% else %}{{ empty }}{% endif %}">
@@ -118,12 +118,12 @@
   {% for journal_title, group_papers in groups %}
   <h2 class="journal-name">{{ journal_title }}</h2>
   {% for paper in group_papers %}
-  {{ paper_card(paper, false, list_path, status_labels, active == "dismissed") }}
+  {{ paper_card(paper, false, list_path, status_groups, active) }}
   {% endfor %}
   {% endfor %}
 {% elif papers %}
   {% for paper in papers %}
-  {{ paper_card(paper, true, list_path, status_labels, active == "dismissed") }}
+  {{ paper_card(paper, true, list_path, status_groups, active) }}
   {% endfor %}
 {% elif query %}
 <p class="empty">No papers matched.</p>

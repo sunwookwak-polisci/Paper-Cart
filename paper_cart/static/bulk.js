@@ -5,7 +5,7 @@
   const all = form.querySelector("[data-bulk-all]");
   const allLabel = form.querySelector("[data-bulk-all-label]");
   const count = form.querySelector("[data-bulk-count]");
-  const buttons = form.querySelectorAll(".bulk-actions button");
+  const buttons = form.querySelectorAll(".status-group button");
   const hint = count ? count.textContent : "";
 
   if (allLabel) allLabel.hidden = false;

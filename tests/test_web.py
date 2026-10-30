@@ -836,6 +836,12 @@ def test_bulk_status_moves_selected_papers(tmp_path):
     assert 'id="bulk-form"' in inbox.text
     assert inbox.text.count('form="bulk-form"') == 3
     assert "Remove selected" not in inbox.text
+    assert 'value="new"' not in inbox.text
+    assert inbox.text.count('class="status-group"') == 8
+    assert inbox.text.index('value="dismissed"') < inbox.text.index('value="reading"')
+    assert inbox.text.index('value="reading"') < inbox.text.index('value="done"')
+    reading_tab = client.get("/reading")
+    assert 'value="reading"' not in reading_tab.text
 
     moved = client.post(
         "/papers/status/bulk",

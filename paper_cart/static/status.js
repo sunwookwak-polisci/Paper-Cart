@@ -38,10 +38,7 @@
     }
     const nextStatus = String(body.get("status") || "");
     await replaceCounts(response);
-    if (nextStatus === view) {
-      markCurrent(form, submitter);
-      return;
-    }
+    if (nextStatus === view) return;
     const article = form.closest("article");
     if (article) removeArticle(article);
     restoreScroll(scrollY);
@@ -60,14 +57,6 @@
       const status = node.getAttribute("data-count");
       const updated = fresh.querySelector(`[data-count="${status}"]`);
       if (updated) node.textContent = updated.textContent;
-    });
-  }
-
-  function markCurrent(form, submitter) {
-    form.querySelectorAll("button").forEach((button) => {
-      const current = button === submitter;
-      button.classList.toggle("is-current", current);
-      button.setAttribute("aria-pressed", current ? "true" : "false");
     });
   }
 
