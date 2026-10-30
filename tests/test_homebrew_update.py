@@ -275,7 +275,7 @@ def test_newer_release_is_announced_before_the_tap_is_updated(monkeypatch, tmp_p
     formula = _write_formula(libexec, "0.1.0")
     _receipt(libexec, formula)
     calls = _fake_release(monkeypatch, "v0.1.1")
-    homebrew.announce_homebrew_update(libexec)
+    assert homebrew.announce_homebrew_update(libexec) == "0.1.1"
     assert capsys.readouterr().out == NOTICE + "\n"
     url, kwargs = calls[0]
     assert url == "https://api.github.com/repos/sunwookwak-polisci/Paper-Cart/releases/latest"
@@ -333,7 +333,11 @@ def test_newer_tap_formula_skips_the_release_lookup(monkeypatch, tmp_path, capsy
 
 def test_main_prints_the_notice_then_starts_on_localhost(monkeypatch, capsys, tmp_path):
     app = SimpleNamespace(state=SimpleNamespace(db_path=tmp_path / "library.sqlite"))
-    monkeypatch.setattr(cli, "announce_homebrew_update", lambda: print(NOTICE))
+    def announce():
+        print(NOTICE)
+        return "0.1.1"
+
+    monkeypatch.setattr(cli, "announce_homebrew_update", announce)
     monkeypatch.setattr(cli, "choose_port", lambda: (8000, False))
     monkeypatch.setattr(cli, "resolve_data_dir", lambda override: (tmp_path, "flag"))
     monkeypatch.setattr(cli, "create_app", lambda data_dir: app)
@@ -352,6 +356,7 @@ def test_main_prints_the_notice_then_starts_on_localhost(monkeypatch, capsys, tm
     lines = capsys.readouterr().out.splitlines()
     assert lines[0] == NOTICE
     assert "Paper Cart is at http://127.0.0.1:8000" in lines
+    assert app.state.newer_version == "0.1.1"
     assert cli.HOST == "127.0.0.1"
 
 

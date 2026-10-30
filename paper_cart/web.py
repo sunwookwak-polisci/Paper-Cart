@@ -139,6 +139,7 @@ def create_app(
     app.state.fetch_papers = fetch or default_fetch
     app.state.fetch_recent_issues = fetch_issues or default_fetch_issues
     app.state.shutdown = None
+    app.state.newer_version = None
 
     @app.get("/")
     def inbox(request: Request):
@@ -854,6 +855,7 @@ def _page_context(request: Request, **extra):
         "report": request.app.state.last_report,
         "refreshing": bool(request.app.state.refreshing),
         "can_quit": request.app.state.shutdown is not None,
+        "newer_version": request.app.state.newer_version,
     }
     context.update(_appearance(request.app.state.db_path))
     context.update(extra)

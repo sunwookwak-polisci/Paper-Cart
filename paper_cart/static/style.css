@@ -594,6 +594,8 @@ button.icon-button .trash-icon {
 
 .banner p, .banner ul { margin: 0.2rem 0; }
 
+.update-notice { margin-top: 1rem; }
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

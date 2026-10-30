@@ -119,6 +119,9 @@
         </form>
       </div>
     </header>
+    {% if newer_version %}
+    <p class="banner update-notice" data-update-notice>Paper Cart {{ newer_version }} is available. Run <code>brew upgrade paper-cart</code> in Terminal, then start Paper Cart again.</p>
+    {% endif %}
     <nav aria-label="Library">
       {% for key, href, label in nav %}
       {% if key == "removed" %}

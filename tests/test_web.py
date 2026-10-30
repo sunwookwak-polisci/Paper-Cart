@@ -22,6 +22,21 @@ def test_header_shows_running_version(tmp_path):
         assert f'<span class="app-version">v{__version__}</span>' in client.get(path).text
 
 
+def test_update_notice_shows_on_every_page_when_a_newer_version_exists(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    client = TestClient(app, base_url="http://127.0.0.1")
+    for path in ("/", "/journals", "/settings"):
+        assert "data-update-notice" not in client.get(path).text
+    app.state.newer_version = "0.1.3"
+    for path in ("/", "/journals", "/settings"):
+        assert (
+            "Paper Cart 0.1.3 is available. Run <code>brew upgrade paper-cart</code>"
+            in client.get(path).text
+        )
+
+
 def test_theme_switch_and_palette_are_served(tmp_path):
     from fastapi.testclient import TestClient
 

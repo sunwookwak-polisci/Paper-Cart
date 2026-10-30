@@ -41,14 +41,18 @@ _OUTDATED_TEXT = re.compile(
 )
 
 
-def announce_homebrew_update(install_path: Path | None = None) -> None:
-    """Print one line when this Homebrew install is older than the formula."""
+def announce_homebrew_update(install_path: Path | None = None) -> str | None:
+    """Print one line when this Homebrew install is older than the formula.
+
+    Returns the newer version so the app can show it too.
+    """
     try:
         version = newer_homebrew_version(install_path)
     except Exception:
-        return
+        return None
     if version:
         print(f"Paper Cart {version} is available. Run brew upgrade paper-cart.")
+    return version
 
 
 def newer_homebrew_version(install_path: Path | None = None) -> str | None:

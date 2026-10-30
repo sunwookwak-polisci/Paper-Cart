@@ -92,7 +92,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
-    announce_homebrew_update()
+    newer_version = announce_homebrew_update()
     port, already_running = choose_port()
     url = f"http://{HOST}:{port}"
     if already_running:
@@ -105,6 +105,7 @@ def main(argv: list[str] | None = None) -> None:
     data_dir = data_dir.resolve()
     application = create_app(data_dir)
     application.state.data_dir_source = source
+    application.state.newer_version = newer_version
     server = QuietServer(uvicorn.Config(application, host=HOST, port=port, log_level="warning"))
 
     def shutdown() -> None:
