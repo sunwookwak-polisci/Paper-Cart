@@ -195,14 +195,14 @@ Paper Cart asks the free [Crossref API](https://api.crossref.org) for recent art
 
 ### Install with uv
 
-Paper Cart can also be installed from source with [uv](https://docs.astral.sh/uv/). This also works on Linux.
+The install steps above use Homebrew, which is Mac only. On Windows or Linux, install Paper Cart from source with [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv tool install git+https://github.com/sunwookwak-polisci/Paper-Cart
 paper-cart
 ```
 
-Update with `uv tool upgrade paper-cart`. On Linux the library is kept in `~/.local/share/paper-cart`.
+Update with `uv tool upgrade paper-cart`. On Windows the library is kept in `%APPDATA%\Paper Cart`. On Linux it is kept in `~/.local/share/paper-cart`.
 
 ### Run from a checkout
 
