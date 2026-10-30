@@ -130,7 +130,7 @@
       <a href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ label }} <span class="count" data-count="{{ key }}">{{ counts[key] }}</span></a>
       {% endif %}
       {% endfor %}
-      <a href="/journals" {% if active == "journals" %}aria-current="page"{% endif %}>Journals</a>
+      <a class="journals-link" href="/journals" {% if active == "journals" %}aria-current="page"{% endif %}>Journals</a>
     </nav>
     <main id="content">
       {% block main %}{% endblock %}
