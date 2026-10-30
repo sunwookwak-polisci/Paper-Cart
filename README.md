@@ -48,7 +48,7 @@
 
 ## Install on a Mac
 
-These steps are for a Mac only. On Windows or Linux, see [For developers](#for-developers).
+These steps are for a Mac only. On Linux, see [For developers](#for-developers). Windows isn't supported yet.
 
 Paper Cart is installed with [Homebrew](https://brew.sh), a free and widely used tool for installing apps on a Mac. You'll copy and paste a few commands into **Terminal**, an app that comes with every Mac. You only need to do steps 1 to 3 once.
 
@@ -197,14 +197,19 @@ Paper Cart asks the free [Crossref API](https://api.crossref.org) for recent art
 
 ### Install with uv
 
-The install steps above use Homebrew, which is Mac only. On Windows or Linux, install Paper Cart from source with [uv](https://docs.astral.sh/uv/).
+The install steps above use Homebrew, which is Mac only. On Linux, install Paper Cart from source with [uv](https://docs.astral.sh/uv/). Windows isn't supported yet.
+
+Before you start, know two things:
+
+- **You need Git.** uv downloads the source with Git. Run `git --version` to check. If it isn't installed, install it with your system's package manager first. Without Git the install stops with "Git executable not found".
+- **You get the newest code, not the latest release.** This installs whatever is on the main branch right now, which can include changes that haven't been released yet. Homebrew on a Mac installs only released versions.
 
 ```bash
 uv tool install git+https://github.com/sunwookwak-polisci/Paper-Cart
 paper-cart
 ```
 
-Update with `uv tool upgrade paper-cart`. On Windows the library is kept in `%APPDATA%\Paper Cart`. On Linux it is kept in `~/.local/share/paper-cart`.
+If the `paper-cart` command isn't found, run `uv tool update-shell` and open a new terminal. Update with `uv tool upgrade paper-cart`. This also moves you to the newest code on the main branch. On Linux the library is kept in `~/.local/share/paper-cart`, or in `$XDG_DATA_HOME/paper-cart` when that is set.
 
 ### Run from a checkout
 
