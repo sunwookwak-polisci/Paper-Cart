@@ -48,6 +48,8 @@
 
 ## Install on a Mac
 
+These steps are for a Mac only. On Windows or Linux, see [For developers](#for-developers).
+
 Paper Cart is installed with [Homebrew](https://brew.sh), a free and widely used tool for installing apps on a Mac. You'll copy and paste a few commands into **Terminal**, an app that comes with every Mac. You only need to do steps 1 to 3 once.
 
 Paper Cart works on Macs with Apple silicon or Intel chips.
