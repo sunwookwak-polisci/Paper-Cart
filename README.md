@@ -119,7 +119,7 @@ Click **Quit** at the top of the Paper Cart page. You can also click the Termina
 
 Paper Cart starts loading articles from the last 30 days. They show up under **New** when loading finishes, and you can keep using Paper Cart in the meantime.
 
-Paper Cart checks for new articles each time it starts. Click **Update** to check again at any time.
+Paper Cart checks for new articles each time it starts. Click **Update** at the top right of the page to check again at any time.
 
 ### Keep track of what you read
 
@@ -138,6 +138,7 @@ Each article has one status. Choosing a status is how you bookmark it.
 
 - Each list has a **Keywords** box. Every word you type must appear in the title, authors, abstract, journal name, or DOI.
 - Tick the box beside articles, or **Select all shown**, to move many at once. Combined with a keyword search, this files or dismisses a whole batch in one step.
+- Click **Abstract** under an article to open its abstract, or turn on **Expand abstracts** to open them all.
 - Articles are listed newest first. Turn on **Group by journal** to group them, then order the groups by **Date**, **Alphabetical**, or **Custom**. With Custom, drag a journal by its handle, or use the arrows, to set your own order.
 
 ### Export abstracts
@@ -146,11 +147,15 @@ On the **Journals** page, choose one or more journals and how many recent issues
 
 ## Update Paper Cart
 
+When a new version is out, Paper Cart shows a notice at the top of the page. Click **Update to** and the new version number, wait for it to finish, then click **Quit** and run `paper-cart` again.
+
+You can also update from Terminal at any time. Quit Paper Cart first, then run:
+
 ```bash
 brew upgrade paper-cart
 ```
 
-If Paper Cart is running, quit it and start it again after the upgrade. Your library is not touched.
+Your library is not touched either way.
 
 ## Uninstall
 
@@ -209,7 +214,7 @@ uv tool install git+https://github.com/sunwookwak-polisci/Paper-Cart
 paper-cart
 ```
 
-If the `paper-cart` command isn't found, run `uv tool update-shell` and open a new terminal. Update with `uv tool upgrade paper-cart`. This also moves you to the newest code on the main branch. On Linux the library is kept in `~/.local/share/paper-cart`, or in `$XDG_DATA_HOME/paper-cart` when that is set.
+If the `paper-cart` command isn't found, run `uv tool update-shell` and open a new terminal. Update with `uv tool upgrade paper-cart`. This also moves you to the newest code on the main branch. The update notice and **Update to** button are for Homebrew installs only, so a uv install doesn't show them. On Linux the library is kept in `~/.local/share/paper-cart`, or in `$XDG_DATA_HOME/paper-cart` when that is set.
 
 ### Run from a checkout
 
