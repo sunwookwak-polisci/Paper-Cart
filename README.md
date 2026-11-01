@@ -140,6 +140,7 @@ Changed your mind? Click **Undo** at the top of the page, or press ⌘Z, to put 
 
 - Each list has a **Keywords** box. Every word you type must appear in the title, authors, abstract, journal name, or DOI.
 - Tick the box beside articles, or **Select all shown**, to move many at once. Combined with a keyword search, this files or dismisses a whole batch in one step.
+- **Copy DOIs** puts those selected articles on the clipboard, one DOI per line, ready to paste into Zotero's Add by identifier.
 - Click **Abstract** under an article to open its abstract, or turn on **Expand abstracts** to open them all.
 - Articles are listed newest first. Turn on **Group by journal** to group them, then order the groups by **Date**, **Alphabetical**, or **Custom**. With Custom, drag a journal by its handle, or use the arrows, to set your own order.
 

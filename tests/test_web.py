@@ -962,6 +962,61 @@ def test_bulk_status_moves_selected_papers(tmp_path):
     assert [paper.doi for paper in list_papers(db_path, "done")] == ["10.1000/bulk2"]
 
 
+def test_copy_dois_uses_the_existing_selection_and_does_not_call_zotero(tmp_path):
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    db_path = tmp_path / "library.sqlite"
+    journal_id = subscribe_journal(db_path, title="Example Journal", issns=("1234-5678",), publisher="")
+    upsert_papers(
+        db_path,
+        journal_id,
+        "Example Journal",
+        [
+            PaperHit(
+                doi="10.1000/Zotero",
+                title="One paper",
+                authors="",
+                abstract=None,
+                published_date="2026-09-01",
+                url="https://doi.org/10.1000/Zotero",
+            )
+        ],
+    )
+    client = TestClient(app, base_url="http://127.0.0.1")
+    page = client.get("/")
+    assert '<button type="button" data-copy-dois' in page.text
+    assert "Copy DOIs" in page.text
+    assert 'data-copy-note' in page.text
+    assert 'role="status"' in page.text
+    assert 'form="bulk-form" name="doi" value="10.1000/Zotero"' in page.text
+    assert "api.zotero.org" not in page.text
+    empty = client.get("/reading")
+    assert "Copy DOIs" not in empty.text
+
+    script = client.get("/static/bulk.js")
+    assert script.status_code == 200
+    assert 'dois.join("\\n")' in script.text
+    assert "Copied ${dois.length}" in script.text
+    assert "navigator.clipboard" in script.text
+    assert "api.zotero.org" not in script.text
+
+    settings = client.get("/settings").text.lower()
+    assert "zotero" not in settings
+    assert "api key" not in settings
+    assert "api_key" not in settings
+
+    package = Path(__file__).resolve().parents[1] / "paper_cart"
+    for path in package.rglob("*"):
+        if path.suffix not in {".py", ".js", ".html", ".css"}:
+            continue
+        text = path.read_text(encoding="utf-8").lower()
+        assert "api.zotero.org" not in text, path.name
+        assert "zotero.org/api" not in text, path.name
+
+
 def test_settings_chooses_the_folder_for_the_next_launch(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
