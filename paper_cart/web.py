@@ -30,6 +30,7 @@ from paper_cart.crossref import (
     normalize_issns,
     search_journals as default_search,
 )
+from paper_cart.homebrew import BrewUpgradeError, offered_upgrade, upgrade_with_brew
 from paper_cart.export import (
     MAX_ISSUES,
     export_filename,
@@ -140,6 +141,7 @@ def create_app(
     app.state.fetch_recent_issues = fetch_issues or default_fetch_issues
     app.state.shutdown = None
     app.state.newer_version = None
+    app.state.upgrade_lock = threading.Lock()
 
     @app.get("/")
     def inbox(request: Request):
@@ -535,6 +537,38 @@ def create_app(
         threading.Timer(1.0, shutdown).start()
         return templates.TemplateResponse(request, "quit.html", {"heading": "Stopped"})
 
+    @app.post("/upgrade")
+    def upgrade_app(request: Request):
+        version = offered_upgrade(request.app.state.newer_version)
+        if version is None:
+            raise HTTPException(status_code=404, detail="Update is not available.")
+        if not request.app.state.upgrade_lock.acquire(blocking=False):
+            return _upgrade_page(
+                request,
+                heading="Updating Paper Cart",
+                message="An update is already running.",
+                failed=True,
+            )
+        try:
+            try:
+                upgrade_with_brew()
+            except BrewUpgradeError as exc:
+                return _upgrade_page(
+                    request,
+                    heading="Could not update Paper Cart",
+                    message=exc.message,
+                    failed=True,
+                )
+            # The running process is still this version. The user quits and starts again.
+            return _upgrade_page(
+                request,
+                heading=f"Updated to {version}",
+                message="Quit Paper Cart and start it again.",
+                failed=False,
+            )
+        finally:
+            request.app.state.upgrade_lock.release()
+
     @app.post("/papers/status/bulk")
     def update_statuses(
         request: Request,
@@ -842,6 +876,19 @@ def _appearance(db_path: Path) -> dict[str, str]:
     return _normalize_appearance(mode, light, dark, font)
 
 
+def _upgrade_page(request: Request, *, heading: str, message: str, failed: bool):
+    return templates.TemplateResponse(
+        request,
+        "upgrade.html",
+        {
+            "heading": heading,
+            "message": message,
+            "failed": failed,
+            "can_quit": request.app.state.shutdown is not None,
+        },
+    )
+
+
 def _page_context(request: Request, **extra):
     try:
         counts = status_counts(request.app.state.db_path)
@@ -856,6 +903,7 @@ def _page_context(request: Request, **extra):
         "refreshing": bool(request.app.state.refreshing),
         "can_quit": request.app.state.shutdown is not None,
         "newer_version": request.app.state.newer_version,
+        "upgrade_version": offered_upgrade(request.app.state.newer_version),
     }
     context.update(_appearance(request.app.state.db_path))
     context.update(extra)

@@ -62,12 +62,17 @@
 <body>
   <a class="skip" href="#content">Skip to content</a>
   <div class="wrap">
-    <header>
+    <header {% if upgrade_version %}class="has-upgrade"{% endif %}>
       <div class="brand">
         <a class="wordmark" href="/">Paper Cart</a>
         <span class="app-version">v{{ app_version }}</span>
       </div>
       <div class="header-actions">
+        {% if upgrade_version %}
+        <form method="post" action="/upgrade" class="upgrade-form">
+          <button type="submit" data-upgrade-button>Update to {{ upgrade_version }}</button>
+        </form>
+        {% endif %}
         <div class="header-tools">
           <div class="theme-menu" data-theme-menu>
             <button type="button" class="theme-button" data-theme-toggle aria-haspopup="dialog" aria-expanded="false" aria-controls="theme-options" aria-label="Color theme">Theme</button>

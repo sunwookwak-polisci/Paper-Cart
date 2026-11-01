@@ -6,6 +6,10 @@ from the local tap formula when that file is present, and otherwise from
 tap only changes when Homebrew updates it, so when it has nothing newer the
 latest GitHub release is asked for too, at most once a day. Both `brew` and
 that request are stopped after a short timeout so startup can continue.
+
+The app reuses that version for an Update button. The button runs
+`brew upgrade paper-cart` with the brew next to this Cellar install. It does
+not contact GitHub and it does not restart Paper Cart.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from paper_cart.config import default_data_dir
 FORMULA = "paper-cart"
 TAP = "sunwookwak-polisci/paper-cart"
 BREW_TIMEOUT_SECONDS = 2
+UPGRADE_TIMEOUT_SECONDS = 300
 RELEASES_URL = "https://api.github.com/repos/sunwookwak-polisci/Paper-Cart/releases/latest"
 RELEASE_TIMEOUT_SECONDS = 2
 RELEASE_CHECK_SECONDS = 24 * 60 * 60
@@ -53,6 +58,93 @@ def announce_homebrew_update(install_path: Path | None = None) -> str | None:
     if version:
         print(f"Paper Cart {version} is available. Run brew upgrade paper-cart.")
     return version
+
+
+class BrewUpgradeError(Exception):
+    """Homebrew could not upgrade this install."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
+def offered_upgrade(version: str | None, install_path: Path | None = None) -> str | None:
+    """Return version when the header can offer ``brew upgrade``, else None.
+
+    ``version`` is the one ``newer_homebrew_version`` already chose. This does
+    not run brew or contact GitHub.
+    """
+    if not isinstance(version, str) or not _is_newer(version, __version__):
+        return None
+    located = _locate(install_path)
+    if located is None:
+        return None
+    if _brew_executable(located[1]) is None:
+        return None
+    return version
+
+
+def upgrade_with_brew(install_path: Path | None = None) -> None:
+    """Run ``brew upgrade paper-cart`` for this Cellar install.
+
+    Raises BrewUpgradeError when brew is missing or the upgrade fails.
+    The caller leaves the server running so the user can quit and start again.
+    """
+    located = _locate(install_path)
+    brew = _brew_executable(located[1]) if located is not None else None
+    if brew is None:
+        raise BrewUpgradeError("Homebrew is not available.")
+    command = [str(brew), "upgrade", FORMULA]
+    try:
+        completed = subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=UPGRADE_TIMEOUT_SECONDS,
+            env=_upgrade_env(),
+            check=False,
+            shell=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise BrewUpgradeError(
+            "Homebrew took too long. Run brew upgrade paper-cart in Terminal."
+        ) from exc
+    except OSError as exc:
+        raise BrewUpgradeError("Homebrew could not be started.") from exc
+    if completed.returncode != 0:
+        detail = _short_brew_text(completed.stderr or completed.stdout or "")
+        raise BrewUpgradeError(detail or "Homebrew could not upgrade Paper Cart.")
+
+
+def _brew_executable(prefix: Path) -> Path | None:
+    brew = prefix / "bin" / "brew"
+    try:
+        if brew.is_file() and os.access(brew, os.X_OK):
+            return brew
+    except OSError:
+        return None
+    return None
+
+
+def _upgrade_env() -> dict[str, str]:
+    """Environment for the upgrade command.
+
+    Auto-update stays as the user set it, so brew can refresh the tap.
+    The startup check turns auto-update off. This does not.
+    """
+    env = os.environ.copy()
+    env["HOMEBREW_NO_COLOR"] = "1"
+    env["HOMEBREW_NO_ENV_HINTS"] = "1"
+    env["HOMEBREW_NO_ANALYTICS"] = "1"
+    return env
+
+
+def _short_brew_text(text: str) -> str:
+    cleaned = " ".join(text.replace("\x00", " ").split())
+    if len(cleaned) > 180:
+        cleaned = cleaned[:177].rstrip() + "..."
+    return cleaned
 
 
 def newer_homebrew_version(install_path: Path | None = None) -> str | None:
