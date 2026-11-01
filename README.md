@@ -245,6 +245,17 @@ In a checkout, `data/` and any `.sqlite` file are gitignored, so a library or `c
 
 The Homebrew formula and release steps are described in [`packaging/homebrew/`](packaging/homebrew/README.md).
 
+## Credits
+
+Paper Cart was inspired by [Paper Picnic](https://paper-picnic.com/about).
+
+The color themes use the published palettes of:
+
+- [Dracula and Alucard](https://draculatheme.com/spec) (the free, open-source Dracula palette)
+- [Tokyo Night](https://github.com/enkia/tokyo-night-vscode-theme)
+- [Ayu](https://github.com/ayu-theme/ayu-vim)
+- [Solarized](https://ethanschoonover.com/solarized/)
+
 ## License
 
 Paper Cart is released under the [MIT License](LICENSE). The bundled Source Sans 3 and Source Serif 4 fonts keep their own SIL Open Font License, included in [`paper_cart/static/fonts/`](paper_cart/static/fonts/).
