@@ -275,29 +275,21 @@ def mark_checked(db_path: Path, journal_id: int, when: str | None = None) -> Non
         )
 
 
+@dataclass(frozen=True)
+class StatusChange:
+    """One paper's move, with both timestamps so undo and redo restore them exactly."""
+
+    doi: str
+    title: str
+    before: str
+    before_at: str
+    after: str
+    after_at: str
+
+
 def set_status(db_path: Path, doi: str, status: str) -> bool:
-    if status not in STATUSES:
-        raise ValueError(status)
-    with connect(db_path) as connection:
-        row = connection.execute(
-            "SELECT status FROM papers WHERE doi = ?",
-            (doi,),
-        ).fetchone()
-        if row is None:
-            return False
-        if row["status"] == status:
-            return True
-        if status == "removed" and row["status"] != "dismissed":
-            raise ValueError("Only dismissed papers can be removed.")
-        connection.execute(
-            """
-            UPDATE papers
-            SET status = ?, status_updated_at = ?
-            WHERE doi = ?
-            """,
-            (status, utcnow(), doi),
-        )
-    return True
+    found, _ = move_papers(db_path, [doi], status)
+    return found > 0
 
 
 def set_statuses(db_path: Path, dois: Sequence[str], status: str) -> int:
@@ -305,30 +297,83 @@ def set_statuses(db_path: Path, dois: Sequence[str], status: str) -> int:
 
     Removal still applies only to dismissed papers.
     """
+    found, _ = move_papers(db_path, dois, status)
+    return found
+
+
+def move_papers(
+    db_path: Path, dois: Sequence[str], status: str
+) -> tuple[int, list[StatusChange]]:
+    """Move papers to a status. Return how many were found and what changed.
+
+    Removal still applies only to dismissed papers.
+    """
     if status not in STATUSES:
         raise ValueError(status)
     unique = list(dict.fromkeys(dois))
     if not unique:
-        return 0
+        return 0, []
     placeholders = ", ".join("?" for _ in unique)
     with connect(db_path) as connection:
         rows = connection.execute(
-            f"SELECT doi, status FROM papers WHERE doi IN ({placeholders})",
+            f"SELECT doi, title, status, status_updated_at FROM papers WHERE doi IN ({placeholders})",
             unique,
         ).fetchall()
         if status == "removed" and any(row["status"] not in {"dismissed", "removed"} for row in rows):
             raise ValueError("Only dismissed papers can be removed.")
-        changing = [row["doi"] for row in rows if row["status"] != status]
-        if changing:
+        by_doi = {row["doi"]: row for row in rows}
+        now = utcnow()
+        changes = [
+            StatusChange(
+                doi=doi,
+                title=by_doi[doi]["title"],
+                before=by_doi[doi]["status"],
+                before_at=by_doi[doi]["status_updated_at"],
+                after=status,
+                after_at=now,
+            )
+            for doi in unique
+            if doi in by_doi and by_doi[doi]["status"] != status
+        ]
+        if changes:
             connection.executemany(
                 """
                 UPDATE papers
                 SET status = ?, status_updated_at = ?
                 WHERE doi = ?
                 """,
-                [(status, utcnow(), doi) for doi in changing],
+                [(change.after, change.after_at, change.doi) for change in changes],
             )
-    return len(rows)
+    return len(rows), changes
+
+
+def replay_changes(
+    db_path: Path, changes: Sequence[StatusChange], *, undo: bool
+) -> list[StatusChange]:
+    """Undo or redo recorded moves and return the ones that still applied.
+
+    A paper is skipped when its status no longer matches the recorded side,
+    so an old step never overwrites a later choice.
+    """
+    applied: list[StatusChange] = []
+    with connect(db_path) as connection:
+        for change in changes:
+            expected, target, target_at = (
+                (change.after, change.before, change.before_at)
+                if undo
+                else (change.before, change.after, change.after_at)
+            )
+            cursor = connection.execute(
+                """
+                UPDATE papers
+                SET status = ?, status_updated_at = ?
+                WHERE doi = ? AND status = ?
+                """,
+                (target, target_at, change.doi, expected),
+            )
+            if cursor.rowcount:
+                applied.append(change)
+    return applied
 
 
 def list_papers(db_path: Path, status: str, *, query: str = "") -> list[Paper]:

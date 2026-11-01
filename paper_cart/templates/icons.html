@@ -26,3 +26,15 @@
   <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M6 9.5 12 15.5l6-6"/>
 </svg>
 {%- endmacro %}
+
+{% macro undo_arrow() -%}
+<svg class="history-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>
+</svg>
+{%- endmacro %}
+
+{% macro redo_arrow() -%}
+<svg class="history-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>
+</svg>
+{%- endmacro %}
