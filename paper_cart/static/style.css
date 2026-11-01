@@ -928,3 +928,49 @@ a.button {
   padding: 0.28rem 0.75rem;
   text-decoration: none;
 }
+
+.history-form {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+button.history-button {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.history-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+button.history-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (max-width: 40rem) {
+  /* Keep the title on one line: Undo and Redo move down beside Quit and Update. */
+  .wordmark { white-space: nowrap; }
+  .history-form { order: 1; gap: 0.15rem; }
+  .quit-form { order: 2; }
+  .refresh-form { order: 3; }
+
+  button.history-button {
+    justify-content: center;
+    width: 1.85rem;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .history-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}

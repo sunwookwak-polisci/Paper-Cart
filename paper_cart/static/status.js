@@ -58,6 +58,10 @@
       const updated = fresh.querySelector(`[data-count="${status}"]`);
       if (updated) node.textContent = updated.textContent;
     });
+    // Undo and Redo now point at this move.
+    const history = document.querySelector("[data-history]");
+    const freshHistory = fresh.querySelector("[data-history]");
+    if (history && freshHistory) history.replaceWith(document.importNode(freshHistory, true));
   }
 
   function removeArticle(article) {

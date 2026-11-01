@@ -30,6 +30,7 @@ from paper_cart.crossref import (
     normalize_issns,
     search_journals as default_search,
 )
+from paper_cart.history import History
 from paper_cart.homebrew import BrewUpgradeError, offered_upgrade, upgrade_with_brew
 from paper_cart.export import (
     MAX_ISSUES,
@@ -54,11 +55,10 @@ from paper_cart.db import (
     list_journals_by_rank,
     list_papers,
     move_journal,
+    move_papers,
     remove_cart_item,
     set_journal_order,
     set_setting,
-    set_status,
-    set_statuses,
     status_counts,
     subscribe_journal,
     unsubscribe_journal,
@@ -142,6 +142,7 @@ def create_app(
     app.state.shutdown = None
     app.state.newer_version = None
     app.state.upgrade_lock = threading.Lock()
+    app.state.history = History()
 
     @app.get("/")
     def inbox(request: Request):
@@ -391,14 +392,19 @@ def create_app(
         status: str = Form(...),
         next: str = Form("/"),
     ):
-        if status not in STATUSES:
-            raise HTTPException(status_code=400, detail="Unknown status.")
-        try:
-            updated = set_status(request.app.state.db_path, doi.strip().lower(), status)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        if not updated:
+        found = _move_papers(request, [doi.strip().lower()], status)
+        if not found:
             raise HTTPException(status_code=404, detail="Paper not found.")
+        return RedirectResponse(safe_next(next), status_code=303)
+
+    @app.post("/undo")
+    def undo(request: Request, next: str = Form("/")):
+        request.app.state.history.undo(request.app.state.db_path)
+        return RedirectResponse(safe_next(next), status_code=303)
+
+    @app.post("/redo")
+    def redo(request: Request, next: str = Form("/")):
+        request.app.state.history.redo(request.app.state.db_path)
         return RedirectResponse(safe_next(next), status_code=303)
 
     @app.get("/settings")
@@ -576,13 +582,7 @@ def create_app(
         doi: list[str] = Form(default_factory=list),
         next: str = Form("/"),
     ):
-        if status not in STATUSES:
-            raise HTTPException(status_code=400, detail="Unknown status.")
-        dois = [value.strip().lower() for value in doi if value.strip()]
-        try:
-            set_statuses(request.app.state.db_path, dois, status)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _move_papers(request, [value.strip().lower() for value in doi if value.strip()], status)
         return RedirectResponse(safe_next(next), status_code=303)
 
     @app.exception_handler(LibraryUnavailable)
@@ -668,6 +668,30 @@ def safe_next(value: str, default: str = "/") -> str:
     if value.startswith("/") and not value.startswith("//") and "\\" not in value:
         return value
     return default
+
+
+def _move_papers(request: Request, dois: list[str], status: str) -> int:
+    """Move papers, remember the move for Undo, and return how many were found."""
+    if status not in STATUSES:
+        raise HTTPException(status_code=400, detail="Unknown status.")
+    db_path = request.app.state.db_path
+    try:
+        found, changes = move_papers(db_path, dois, status)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    request.app.state.history.record(db_path, changes)
+    return found
+
+
+def history_buttons(request: Request) -> dict[str, str]:
+    """Undo and Redo hover text plus where to return, for the page header."""
+    undo, redo = request.app.state.history.labels(request.app.state.db_path)
+    # Keep the search, but not one-off notices such as "updated=1".
+    next_path = _list_path(request.url.path, request.query_params.get("q", "").strip())
+    return {"undo": undo, "redo": redo, "next": next_path}
+
+
+templates.env.globals["history_buttons"] = history_buttons
 
 
 def _papers(request: Request, status: str):

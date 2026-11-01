@@ -298,7 +298,7 @@ def test_subscribe_update_and_progress(tmp_path):
     )
     assert moved.headers["location"] == "/later"
     assert "A real paper" in client.get("/later").text
-    assert "A real paper" not in client.get("/").text
+    assert "A real paper" not in _paper_list(client.get("/").text)
 
     client.post(
         "/papers/status",
@@ -309,7 +309,7 @@ def test_subscribe_update_and_progress(tmp_path):
     assert refreshed.status_code == 303
     reading = client.get("/reading")
     assert "A real paper" in reading.text
-    assert "A real paper" not in client.get("/").text
+    assert "A real paper" not in _paper_list(client.get("/").text)
     assert 'aria-label="Remove"' not in reading.text
     assert 'class="trash-link"' in reading.text
     assert ">Removal<" not in reading.text
@@ -337,7 +337,7 @@ def test_subscribe_update_and_progress(tmp_path):
     )
     assert removed.status_code == 303
     assert removed.headers["location"] == "/dismissed"
-    assert "A real paper" not in client.get("/dismissed").text
+    assert "A real paper" not in _paper_list(client.get("/dismissed").text)
     removed_page = client.get("/removed")
     assert "<h1>Removed</h1>" in removed_page.text
     assert "A real paper" in removed_page.text
@@ -349,7 +349,7 @@ def test_subscribe_update_and_progress(tmp_path):
     )
     assert restored.headers["location"] == "/"
     assert "A real paper" in client.get("/done").text
-    assert "A real paper" not in client.get("/removed").text
+    assert "A real paper" not in _paper_list(client.get("/removed").text)
 
     unknown = client.post(
         "/papers/status",
@@ -810,6 +810,11 @@ def _catalog_search(query, *, mailto=None, client=None):
         ],
     }
     return catalog[query]
+
+
+def _paper_list(page: str) -> str:
+    """The page from the paper list on, past the header's Undo and Redo labels."""
+    return page[page.index("data-paper-list"):]
 
 
 def _search(query, *, mailto=None, client=None):
@@ -1520,3 +1525,75 @@ def test_upgrade_button_runs_brew_and_leaves_the_server_running(tmp_path, monkey
         app.state.upgrade_lock.release()
     assert "An update is already running." in busy.text
     assert len(calls) == 2
+
+
+def test_undo_and_redo_paper_moves_from_the_header(tmp_path):
+    import html
+
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    db_path = tmp_path / "library.sqlite"
+    journal_id = subscribe_journal(db_path, title="Example Journal", issns=("1234-5678",), publisher="")
+    upsert_papers(
+        db_path,
+        journal_id,
+        "Example Journal",
+        [
+            PaperHit(
+                doi=f"10.1000/undo{n}",
+                title=f"Undo paper {n}",
+                authors="",
+                abstract=None,
+                published_date="2026-09-01",
+                url=f"https://doi.org/10.1000/undo{n}",
+            )
+            for n in range(3)
+        ],
+    )
+    client = TestClient(app, base_url="http://127.0.0.1")
+
+    def statuses():
+        return {
+            status: sorted(paper.doi for paper in list_papers(db_path, status))
+            for status in ("new", "read_later", "dismissed", "removed")
+        }
+
+    for path in ("/", "/journals", "/settings"):
+        page = client.get(path).text
+        assert 'action="/undo"' in page
+        assert 'title="Nothing to undo" disabled' in page
+        assert 'title="Nothing to redo" disabled' in page
+        assert f'name="next" value="{path}"' in page
+        assert "/static/history.js?v=" in page
+
+    moved = client.post("/papers/status", data={"doi": "10.1000/undo0", "status": "dismissed", "next": "/"})
+    assert html.unescape(moved.text).count("Undo dismissing “Undo paper 0” (⌘Z)") == 1
+    client.post(
+        "/papers/status/bulk",
+        data={"doi": ["10.1000/undo1", "10.1000/undo2"], "status": "read_later", "next": "/"},
+    )
+    client.post("/papers/status", data={"doi": "10.1000/undo0", "status": "removed", "next": "/dismissed"})
+    assert statuses()["removed"] == ["10.1000/undo0"]
+
+    page = client.post("/undo", data={"next": "/dismissed"})
+    assert page.url.path == "/dismissed"
+    assert statuses()["dismissed"] == ["10.1000/undo0"]
+    assert "Redo removing “Undo paper 0” (⇧⌘Z)" in html.unescape(page.text)
+
+    client.post("/undo", data={"next": "/"})
+    assert statuses()["new"] == ["10.1000/undo1", "10.1000/undo2"]
+    page = client.post("/undo", data={"next": "/?q=Undo"})
+    assert str(page.url).endswith("/?q=Undo")
+    assert statuses()["new"] == ["10.1000/undo0", "10.1000/undo1", "10.1000/undo2"]
+    assert 'title="Nothing to undo" disabled' in page.text
+
+    client.post("/redo", data={"next": "/"})
+    client.post("/redo", data={"next": "/"})
+    assert statuses()["read_later"] == ["10.1000/undo1", "10.1000/undo2"]
+    assert statuses()["dismissed"] == ["10.1000/undo0"]
+
+    # Nothing left to redo is a harmless no-op, and off-site targets stay local.
+    client.post("/redo", data={"next": "/"})
+    assert client.post("/redo", data={"next": "https://example.com"}).url.path == "/"
+    assert statuses()["removed"] == ["10.1000/undo0"]

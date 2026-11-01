@@ -1,4 +1,4 @@
-{% from "icons.html" import trash %}
+{% from "icons.html" import redo_arrow, trash, undo_arrow %}
 <!DOCTYPE html>
 <html lang="en" data-theme="{{ theme_id }}" data-theme-preference="{{ theme_mode }}" data-theme-light="{{ theme_light }}" data-theme-dark="{{ theme_dark }}" data-font="{{ theme_font }}">
 <head>
@@ -73,6 +73,14 @@
           <button type="submit" data-upgrade-button>Update to {{ upgrade_version }}</button>
         </form>
         {% endif %}
+        {% set history = history_buttons(request) %}
+        <form method="post" action="/undo" class="history-form" data-history>
+          <input type="hidden" name="next" value="{{ history.next }}">
+          <button type="submit" class="history-button" data-history-undo
+            {% if history.undo %}title="Undo {{ history.undo }} (⌘Z)"{% else %}title="Nothing to undo" disabled{% endif %}>{{ undo_arrow() }}<span class="history-label">Undo</span></button>
+          <button type="submit" formaction="/redo" class="history-button" data-history-redo
+            {% if history.redo %}title="Redo {{ history.redo }} (⇧⌘Z)"{% else %}title="Nothing to redo" disabled{% endif %}>{{ redo_arrow() }}<span class="history-label">Redo</span></button>
+        </form>
         <div class="header-tools">
           <div class="theme-menu" data-theme-menu>
             <button type="button" class="theme-button" data-theme-toggle aria-haspopup="dialog" aria-expanded="false" aria-controls="theme-options" aria-label="Color theme">Theme</button>
@@ -111,11 +119,11 @@
           <a class="settings-link" href="/settings" {% if active|default("") == "settings" %}aria-current="page"{% endif %}>Settings</a>
         </div>
         {% if can_quit %}
-        <form method="post" action="/quit">
+        <form method="post" action="/quit" class="quit-form">
           <button type="submit" title="Stop Paper Cart">Quit</button>
         </form>
         {% endif %}
-        <form method="post" action="/refresh">
+        <form method="post" action="/refresh" class="refresh-form">
           {% if refreshing %}
           <button class="primary" type="submit" data-update-button disabled>Updating…</button>
           {% else %}
@@ -141,6 +149,7 @@
       {% block main %}{% endblock %}
     </main>
   </div>
+  <script src="/static/history.js?v={{ app_version }}"></script>
   {% if refreshing %}
   <script src="/static/refresh.js?v={{ app_version }}"></script>
   {% endif %}
