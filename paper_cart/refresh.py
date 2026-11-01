@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -22,8 +22,9 @@ class RefreshReport:
 
 
 def window_start(last_checked_at: str | None, today: date) -> date:
-    days = 30 if last_checked_at is None else 14
-    return today - timedelta(days=days)
+    if last_checked_at is None:
+        return today - timedelta(days=30)
+    return datetime.fromisoformat(last_checked_at).date()
 
 
 def refresh_journals(
