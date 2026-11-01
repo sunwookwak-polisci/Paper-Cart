@@ -55,8 +55,8 @@
       root.dataset.font = font;
     })();
   </script>
-  <link rel="stylesheet" href="/static/style.css">
-  <script src="/static/theme.js"></script>
+  <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
+  <script src="/static/theme.js?v={{ app_version }}"></script>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -142,7 +142,7 @@
     </main>
   </div>
   {% if refreshing %}
-  <script src="/static/refresh.js"></script>
+  <script src="/static/refresh.js?v={{ app_version }}"></script>
   {% endif %}
 </body>
 </html>
