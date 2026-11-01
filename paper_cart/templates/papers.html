@@ -138,8 +138,8 @@
 <p class="empty">{{ empty }}</p>
 {% endif %}
 </div>
-<script src="/static/status.js"></script>
-<script src="/static/order.js"></script>
-<script src="/static/bulk.js"></script>
-<script src="/static/abstracts.js"></script>
+<script src="/static/status.js?v={{ app_version }}"></script>
+<script src="/static/order.js?v={{ app_version }}"></script>
+<script src="/static/bulk.js?v={{ app_version }}"></script>
+<script src="/static/abstracts.js?v={{ app_version }}"></script>
 {% endblock %}

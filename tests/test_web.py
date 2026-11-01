@@ -22,6 +22,22 @@ def test_header_shows_running_version(tmp_path):
         assert f'<span class="app-version">v{__version__}</span>' in client.get(path).text
 
 
+def test_static_links_carry_the_version_so_upgrades_skip_stale_caches(tmp_path):
+    import re
+
+    from fastapi.testclient import TestClient
+
+    from paper_cart import __version__
+
+    client = TestClient(create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1")
+    for path in ("/", "/journals", "/settings"):
+        page = client.get(path).text
+        links = re.findall(r'(?:href|src)="(/static/[^"]+)"', page)
+        assert f"/static/style.css?v={__version__}" in links
+        assert all(link.endswith(f"?v={__version__}") for link in links)
+        assert client.get(links[0]).status_code == 200
+
+
 def test_update_notice_shows_on_every_page_when_a_newer_version_exists(tmp_path):
     from fastapi.testclient import TestClient
 
@@ -47,7 +63,7 @@ def test_theme_switch_and_palette_are_served(tmp_path):
         create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1"
     )
     page = client.get("/")
-    assert 'src="/static/theme.js"' in page.text
+    assert 'src="/static/theme.js?v=' in page.text
     assert 'aria-label="Color theme"' in page.text
     assert 'data-theme-toggle' in page.text
     assert 'aria-haspopup="dialog"' in page.text
@@ -651,7 +667,7 @@ def test_export_abstracts_fetches_older_issues_without_changing_library(tmp_path
     assert "Markdown file" in page.text
     assert 'action="/journals/export"' in page.text
     assert "Number of recent issues" in page.text
-    assert 'src="/static/export.js"' in page.text
+    assert 'src="/static/export.js?v=' in page.text
 
     missed = client.post("/journals/export", data={"issues": "2"}, follow_redirects=False)
     assert missed.status_code == 303
