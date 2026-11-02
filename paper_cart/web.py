@@ -819,7 +819,11 @@ def _papers(request: Request, status: str):
         show_report = True
         request.app.state.report_pending = False
     elsewhere_raw = request.query_params.get("moved_elsewhere", "")
-    moved_elsewhere = int(elsewhere_raw) if elsewhere_raw.isdigit() else 0
+    moved_elsewhere = (
+        int(elsewhere_raw)
+        if elsewhere_raw.isascii() and elsewhere_raw.isdigit() and len(elsewhere_raw) <= 6
+        else 0
+    )
     response = templates.TemplateResponse(
         request,
         "papers.html",

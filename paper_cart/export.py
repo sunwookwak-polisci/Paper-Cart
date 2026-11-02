@@ -201,6 +201,7 @@ class ExportJob:
             "message": message,
             "current": current,
             "cancelling": cancelling,
+            "downloaded": self.downloaded,
             "filename": self.filename if state == "ready" else None,
             "download": f"/journals/export/{self.id}/download" if state == "ready" else None,
         }

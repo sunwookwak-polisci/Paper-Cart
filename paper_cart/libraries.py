@@ -114,7 +114,7 @@ def missing_library_name(folder: Path) -> str | None:
     # iCloud's Optimize Mac Storage leaves ".library.sqlite.icloud" in place of the file.
     for path in sorted(folder.iterdir()):
         name = path.name
-        if name.startswith(".") and name.endswith(".icloud"):
+        if name.startswith(".") and name.lower().endswith(".sqlite.icloud"):
             try:
                 return normalize_library_name(name[1 : -len(".icloud")])
             except ConfigError:

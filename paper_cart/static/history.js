@@ -3,6 +3,7 @@
   let pending = false;
 
   restoreScroll();
+  forgetNote();
 
   document.addEventListener("submit", (event) => {
     const form = event.target;
@@ -70,6 +71,16 @@
     return !["checkbox", "radio", "button", "submit", "reset", "range", "color", "file"].includes(
       target.type,
     );
+  }
+
+  // The note is for this visit only; a reload after later moves must not show it again.
+  function forgetNote() {
+    const url = new URL(location.href);
+    if (!url.searchParams.has("note")) return;
+    url.searchParams.delete("note");
+    try {
+      history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+    } catch {}
   }
 
   function restoreScroll() {

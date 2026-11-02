@@ -128,3 +128,20 @@ def test_labels_tidy_long_titles(tmp_path, title, label):
 
     change = StatusChange("10.1000/x", title, "dismissed", "", "new", "")
     assert Step((change,)).describe() == label
+
+
+def test_a_failed_undo_keeps_the_step(tmp_path):
+    from paper_cart.db import LibraryUnavailable
+
+    db_path = _library(tmp_path)
+    history = History()
+    _, changes = move_papers(db_path, ["10.1000/p0"], "done")
+    history.record(db_path, changes)
+    parked = tmp_path / "parked.sqlite"
+    db_path.rename(parked)
+    with pytest.raises(LibraryUnavailable):
+        history.undo(db_path)
+    parked.rename(db_path)
+    assert history.labels(db_path)[0] == "moving “Paper 0” to Done"
+    assert history.undo(db_path) is not None
+    assert _dois(db_path, "new") == ["10.1000/p0", "10.1000/p1", "10.1000/p2"]

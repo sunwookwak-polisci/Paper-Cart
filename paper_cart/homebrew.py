@@ -132,8 +132,14 @@ def _upgrade_env() -> dict[str, str]:
 
     Auto-update stays as the user set it, so brew can refresh the tap.
     The startup check turns auto-update off. This does not.
+
+    Cleanup is off for this one command. By default brew deletes the old
+    version's folder right after upgrading, and this running app serves its
+    pages from that folder, so every page, Quit included, would fail until
+    restart. Homebrew's regular cleanup removes the old version later.
     """
     env = os.environ.copy()
+    env["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
     env["HOMEBREW_NO_COLOR"] = "1"
     env["HOMEBREW_NO_ENV_HINTS"] = "1"
     env["HOMEBREW_NO_ANALYTICS"] = "1"

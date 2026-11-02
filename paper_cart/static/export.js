@@ -102,7 +102,8 @@
       download.download = job.filename;
       download.textContent = `Download ${job.filename} again`;
       download.hidden = false;
-      if (jobId) download.click();
+      // Another open Journals tab may have fetched the file already.
+      if (jobId && !job.downloaded) download.click();
     } else {
       download.hidden = true;
     }
