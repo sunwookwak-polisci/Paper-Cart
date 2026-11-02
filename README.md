@@ -149,6 +149,8 @@ Changed your mind? Click **Undo** at the top of the page, or press ⌘Z, to put 
 
 On the **Journals** page, choose one or more journals and how many recent issues to include. Paper Cart downloads a Markdown file with the titles, authors, DOIs, and abstracts. It can include articles older than the ones under New, and it doesn't change any reading status. Some publishers don't share abstracts. Those articles are still listed with their DOI.
 
+A large export can take a while. A progress bar under the button shows how far along it is, and **Cancel** stops it. You can leave the page while it runs; come back to Journals and the file downloads when it's ready.
+
 ## Update Paper Cart
 
 When a new version is out, Paper Cart shows a notice at the top of the page. Click **Update to** and the new version number, wait for it to finish, then click **Quit** and run `paper-cart` again.

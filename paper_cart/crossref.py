@@ -221,8 +221,13 @@ def fetch_recent_issues(
     mailto: str | None = None,
     client: httpx.Client | None = None,
     pause: Callable[[], None] | None = None,
+    progress: Callable[[float], None] | None = None,
 ) -> list[IssueGroup]:
-    """Return papers in the most recent `issue_count` issues, newest issue first."""
+    """Return papers in the most recent `issue_count` issues, newest issue first.
+
+    `progress`, if given, is called with a rough share of the work done (0 to 1)
+    after each page from Crossref.
+    """
     if issue_count < 1:
         return []
     if pause is None:
@@ -235,13 +240,19 @@ def fetch_recent_issues(
     client = client or _client(mailto)
     by_doi: dict[str, PaperHit] = {}
     try:
-        for issn in issns:
+        for index, issn in enumerate(issns):
+
+            def report(share: float, index: int = index) -> None:
+                if progress is not None:
+                    progress((index + share) / len(issns))
+
             for item in _collect_recent_works(
-                client, issn, issue_count, mailto, pause
+                client, issn, issue_count, mailto, pause, report
             ):
                 paper = parse_work(item)
                 if paper is not None and paper.doi not in by_doi:
                     by_doi[paper.doi] = paper
+            report(1.0)
     finally:
         if owns_client:
             client.close()
@@ -367,6 +378,7 @@ def _collect_recent_works(
     issue_count: int,
     mailto: str | None,
     pause: Callable[[], None],
+    progress: Callable[[float], None] | None = None,
 ) -> list[dict]:
     offset = 0
     rows = 100
@@ -397,6 +409,9 @@ def _collect_recent_works(
                 page_keys.add(key)
         groups = select_recent_issues(parsed, issue_count)
         distinct = {key for paper in parsed if (key := issue_key(paper))}
+        if progress is not None:
+            # Hold back the last tenth: one more page may be needed to confirm the cutoff.
+            progress(0.9 * min(len(distinct), issue_count) / issue_count)
         if (
             len(distinct) > issue_count
             and page_keys

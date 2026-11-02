@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.background import BackgroundTask
@@ -35,6 +35,8 @@ from paper_cart.history import History
 from paper_cart.homebrew import BrewUpgradeError, offered_upgrade, upgrade_with_brew
 from paper_cart.export import (
     MAX_ISSUES,
+    ExportCancelled,
+    ExportJob,
     export_filename,
     export_journal_abstracts,
     format_abstract_export,
@@ -142,6 +144,7 @@ def create_app(
     app.state.library_hold = False
     app.state.lock = threading.Lock()
     app.state.export_lock = threading.Lock()
+    app.state.export_job = None
     app.state.last_report = None
     app.state.refreshing = False
     app.state.report_pending = False
@@ -232,6 +235,7 @@ def create_app(
                 cart=cart,
                 journals=list_journals(request.app.state.db_path, subscribed_only=True),
                 max_issues=MAX_ISSUES,
+                export_job=_pending_export(request.app),
             ),
         )
 
@@ -300,6 +304,16 @@ def create_app(
         journal_id: list[int] | None = Form(default=None),
         issues: str = Form("4"),
     ):
+        # The Journals page script asks for JSON and follows a background job;
+        # a plain form post (no script) waits for the file as before.
+        wants_job = "application/json" in request.headers.get("accept", "")
+
+        def bounce(notice: str):
+            location = _journals_location(notice=notice)
+            if wants_job:
+                return JSONResponse({"redirect": location})
+            return RedirectResponse(location, status_code=303)
+
         selected_ids = journal_id or []
         subscribed = {
             journal.id: journal
@@ -307,25 +321,25 @@ def create_app(
         }
         journals = [subscribed[item] for item in selected_ids if item in subscribed]
         if not journals:
-            return RedirectResponse(
-                _journals_location(notice="select_export"),
-                status_code=303,
-            )
+            return bounce("select_export")
         try:
             issue_count = int(issues.strip())
         except ValueError:
             issue_count = 0
         if issue_count < 1 or issue_count > MAX_ISSUES:
-            return RedirectResponse(_journals_location(notice="issues"), status_code=303)
-        config_error = _config_error(request)
-        if config_error:
-            return RedirectResponse(
-                _journals_location(notice="export_config"),
-                status_code=303,
-            )
+            return bounce("issues")
+        if _config_error(request):
+            return bounce("export_config")
         state = request.app.state
         if not state.export_lock.acquire(blocking=False):
-            return RedirectResponse(_journals_location(notice="export_busy"), status_code=303)
+            return bounce("export_busy")
+        if wants_job:
+            try:
+                job = start_export(request.app, journals, issue_count, _mailto(request))
+            except BaseException:
+                state.export_lock.release()
+                raise
+            return JSONResponse(job.snapshot())
         try:
             exports = export_journal_abstracts(
                 journals,
@@ -337,16 +351,26 @@ def create_app(
             state.export_lock.release()
         text = format_abstract_export(exports)
         if not text:
-            return RedirectResponse(
-                _journals_location(notice="export_empty"),
-                status_code=303,
-            )
-        filename = export_filename(journals)
-        return Response(
-            content=text,
-            media_type="text/markdown; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
+            return bounce("export_empty")
+        return _markdown_download(text, export_filename(journals))
+
+    @app.get("/journals/export/{job_id}")
+    def export_status(job_id: str, request: Request):
+        return JSONResponse(_export_job(request, job_id).snapshot())
+
+    @app.post("/journals/export/{job_id}/cancel")
+    def cancel_export(job_id: str, request: Request):
+        job = _export_job(request, job_id)
+        job.cancel()
+        return JSONResponse(job.snapshot())
+
+    @app.get("/journals/export/{job_id}/download")
+    def download_export(job_id: str, request: Request):
+        job = _export_job(request, job_id)
+        if job.state != "ready":
+            raise HTTPException(status_code=404)
+        job.downloaded = True
+        return _markdown_download(job.text, job.filename)
 
     @app.post("/journals/{journal_id}/unsubscribe")
     def unsubscribe(journal_id: int, request: Request):
@@ -1058,6 +1082,54 @@ def _begin_refresh(app: FastAPI) -> bool:
         app.state.refresh_jobs += 1
         app.state.refreshing = True
     return True
+
+
+def start_export(app: FastAPI, journals: list[Journal], issue_count: int, mailto: str | None) -> ExportJob:
+    """Run an abstract export in the background. The caller holds export_lock;
+    the worker releases it when the export ends."""
+    job = ExportJob(journals)
+    app.state.export_job = job
+
+    def run() -> None:
+        try:
+            exports = export_journal_abstracts(
+                journals,
+                issue_count,
+                fetch=app.state.fetch_recent_issues,
+                mailto=mailto,
+                on_progress=job.progress,
+            )
+            job.finish(format_abstract_export(exports))
+        except ExportCancelled:
+            job.stop("cancelled")
+        except Exception:
+            job.stop("failed")
+            raise  # let the thread print the traceback to the terminal
+        finally:
+            app.state.export_lock.release()
+
+    threading.Thread(target=run, name="paper-cart-export", daemon=True).start()
+    return job
+
+
+def _pending_export(app: FastAPI) -> ExportJob | None:
+    job = app.state.export_job
+    return job if job is not None and job.pending else None
+
+
+def _export_job(request: Request, job_id: str) -> ExportJob:
+    job = request.app.state.export_job
+    if job is None or job.id != job_id:
+        raise HTTPException(status_code=404)
+    return job
+
+
+def _markdown_download(text: str, filename: str) -> Response:
+    return Response(
+        content=text,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 def _end_refresh(app: FastAPI) -> None:

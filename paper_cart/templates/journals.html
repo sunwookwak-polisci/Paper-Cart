@@ -92,7 +92,7 @@
 </ul>
 <h2>Export abstracts</h2>
 <p class="lede">Download a Markdown file of abstracts from the most recent issues of journals you follow. This fetches from Crossref, so it includes papers older than New. Some publishers omit abstracts; those papers are still listed.</p>
-<form class="export-form" method="post" action="/journals/export">
+<form class="export-form" method="post" action="/journals/export"{% if export_job %} data-export-job="{{ export_job.id }}"{% endif %}>
   <ul class="results">
     {% for journal in journals %}
     <li class="card">
@@ -106,7 +106,20 @@
   <label for="issues">Number of recent issues</label>
   <div class="search-row">
     <input id="issues" name="issues" type="number" min="1" max="{{ max_issues }}" value="4" required>
-    <button class="primary" type="submit">Export abstracts</button>
+    <button class="primary" type="submit" data-export-button>Export abstracts</button>
+  </div>
+  <div class="export-progress" data-export-progress hidden>
+    <div class="export-progress-row">
+      <strong data-export-message role="status">Exporting abstracts…</strong>
+      <span class="meta" data-export-current></span>
+    </div>
+    <div class="progress-track" data-export-track role="progressbar" aria-label="Export progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="progress-fill" data-export-fill></div>
+    </div>
+    <div class="export-progress-actions">
+      <a class="export-download" data-export-download hidden></a>
+      <button type="button" data-export-cancel>Cancel</button>
+    </div>
   </div>
 </form>
 <script src="/static/export.js?v={{ app_version }}"></script>
