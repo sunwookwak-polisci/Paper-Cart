@@ -14,23 +14,29 @@
     return Array.from(list.querySelectorAll("[data-bulk-pick]"));
   }
 
+  // Papers inside a folded journal are hidden, so "Select all shown" skips them.
+  function shown() {
+    return picks().filter((box) => !box.closest("details.journal-group:not([open])"));
+  }
+
   function sync() {
-    const boxes = picks();
-    const picked = boxes.filter((box) => box.checked).length;
+    const picked = picks().filter((box) => box.checked).length;
     if (count) count.textContent = picked ? `${picked} selected` : hint;
     buttons.forEach((button) => {
       button.disabled = picked === 0;
     });
     if (all instanceof HTMLInputElement) {
-      all.checked = boxes.length > 0 && picked === boxes.length;
-      all.indeterminate = picked > 0 && picked < boxes.length;
+      const boxes = shown();
+      const pickedShown = boxes.filter((box) => box.checked).length;
+      all.checked = boxes.length > 0 && pickedShown === boxes.length;
+      all.indeterminate = pickedShown > 0 && pickedShown < boxes.length;
     }
-    if (!boxes.length) form.hidden = true;
+    if (!picks().length) form.hidden = true;
   }
 
   if (all instanceof HTMLInputElement) {
     all.addEventListener("change", () => {
-      picks().forEach((box) => {
+      shown().forEach((box) => {
         box.checked = all.checked;
       });
       sync();
@@ -40,6 +46,8 @@
   list.addEventListener("change", (event) => {
     if (event.target instanceof HTMLInputElement && event.target.matches("[data-bulk-pick]")) sync();
   });
+
+  list.addEventListener("toggle", sync, true);
 
   // Single-paper moves remove cards; keep the count honest.
   new MutationObserver(sync).observe(list, { childList: true, subtree: true });

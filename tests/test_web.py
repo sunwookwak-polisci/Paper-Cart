@@ -1597,3 +1597,54 @@ def test_undo_and_redo_paper_moves_from_the_header(tmp_path):
     client.post("/redo", data={"next": "/"})
     assert client.post("/redo", data={"next": "https://example.com"}).url.path == "/"
     assert statuses()["removed"] == ["10.1000/undo0"]
+
+
+def test_journal_groups_fold_and_are_remembered(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    db_path = tmp_path / "library.sqlite"
+    alpha = subscribe_journal(db_path, title="Alpha Journal", issns=("1111-1111",), publisher="")
+    beta = subscribe_journal(db_path, title="Beta Journal", issns=("2222-2222",), publisher="")
+    upsert_papers(db_path, alpha, "Alpha Journal", [_hit("10.1000/a", "Paper A", "2026-09-01", "Ada", "")])
+    upsert_papers(
+        db_path,
+        beta,
+        "Beta Journal",
+        [
+            _hit("10.1000/b", "Paper B", "2026-09-02", "Grace", ""),
+            _hit("10.1000/c", "Paper C", "2026-09-03", "Grace", ""),
+        ],
+    )
+    client = TestClient(app, base_url="http://127.0.0.1")
+
+    assert "Fold all" not in client.get("/").text
+    client.post("/view", data={"group": "1", "next": "/"}, follow_redirects=False)
+    page = client.get("/")
+    assert "Fold all" in page.text and "Expand all" in page.text
+    assert '<details class="journal-group" data-journal="Alpha Journal" open>' in page.text
+    assert '<details class="journal-group" data-journal="Beta Journal" open>' in page.text
+    assert "1 paper<" in page.text and "2 papers<" in page.text
+
+    folded = client.post(
+        "/view", data={"journal": "Beta Journal", "journal_open": "0", "next": "/"}, follow_redirects=False
+    )
+    assert folded.headers["location"] == "/"
+    page = client.get("/")
+    assert 'data-journal="Alpha Journal" open>' in page.text
+    assert '<details class="journal-group" data-journal="Beta Journal">' in page.text
+
+    client.post("/view", data={"journals": "fold", "next": "/"}, follow_redirects=False)
+    page = client.get("/")
+    assert 'data-journal="Alpha Journal">' in page.text
+    assert 'data-journal="Beta Journal">' in page.text
+
+    client.post("/view", data={"journal": "Alpha Journal", "journal_open": "1", "next": "/"}, follow_redirects=False)
+    page = client.get("/")
+    assert 'data-journal="Alpha Journal" open>' in page.text
+    assert 'data-journal="Beta Journal">' in page.text
+
+    client.post("/view", data={"journals": "open", "next": "/"}, follow_redirects=False)
+    page = client.get("/")
+    assert 'data-journal="Alpha Journal" open>' in page.text
+    assert 'data-journal="Beta Journal" open>' in page.text
