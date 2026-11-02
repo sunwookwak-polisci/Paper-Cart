@@ -122,11 +122,21 @@
 {% endif %}
 <div data-paper-list data-status="{{ active }}" data-empty="{% if query %}No papers matched.{% else %}{{ empty }}{% endif %}">
 {% if grouped and groups %}
+  <div class="journal-folds">
+    <span>Journals</span>
+    <form method="post" action="/view" data-journal-folds>
+      <input type="hidden" name="next" value="{{ list_path }}">
+      <button type="submit" name="journals" value="fold">Fold all</button>
+      <button type="submit" name="journals" value="open">Expand all</button>
+    </form>
+  </div>
   {% for journal_title, group_papers in groups %}
-  <h2 class="journal-name">{{ journal_title }}</h2>
+  <details class="journal-group" data-journal="{{ journal_title }}"{% if journal_title not in folded_journals %} open{% endif %}>
+    <summary><h2 class="journal-name">{{ journal_title }}</h2> <span class="journal-count" data-journal-count>{{ group_papers | length }} {{ "paper" if group_papers | length == 1 else "papers" }}</span></summary>
   {% for paper in group_papers %}
   {{ paper_card(paper, false, list_path, status_groups, active, abstracts_open) }}
   {% endfor %}
+  </details>
   {% endfor %}
 {% elif papers %}
   {% for paper in papers %}
@@ -142,4 +152,5 @@
 <script src="/static/order.js?v={{ app_version }}"></script>
 <script src="/static/bulk.js?v={{ app_version }}"></script>
 <script src="/static/abstracts.js?v={{ app_version }}"></script>
+<script src="/static/journals-fold.js?v={{ app_version }}"></script>
 {% endblock %}

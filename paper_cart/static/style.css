@@ -653,6 +653,63 @@ button.icon-button .trash-icon {
   font-size: 0.88rem;
 }
 
+.journal-folds {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0.4rem 0 -0.4rem;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.journal-folds form {
+  display: flex;
+  gap: 0.4rem;
+}
+
+details.journal-group {
+  margin: 0;
+}
+
+.journal-group > summary {
+  display: block;
+  margin: 1.6rem 0 0.55rem;
+  list-style: none;
+}
+
+.journal-group > summary::-webkit-details-marker { display: none; }
+
+.journal-group > summary::before {
+  content: "";
+  display: inline-block;
+  vertical-align: 0.12em;
+  margin-right: 0.55rem;
+  width: 0;
+  height: 0;
+  border-left: 0.32rem solid transparent;
+  border-right: 0.32rem solid transparent;
+  border-top: 0.42rem solid currentColor;
+  transition: transform 150ms ease;
+}
+
+.journal-group:not([open]) > summary::before { transform: rotate(-90deg); }
+
+.journal-group:not([open]) > summary { margin-bottom: 0; }
+
+.journal-group > summary .journal-name {
+  display: inline;
+  margin: 0 0.45rem 0 0;
+}
+
+.journal-count {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 details.order-panel {
   margin: 1.6rem 0 1.1rem;
 }
