@@ -1096,3 +1096,12 @@ button.history-button:disabled {
     white-space: nowrap;
   }
 }
+
+/* After Undo or Redo the list keeps its scroll position, so the note stays in view. */
+.history-note {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 5;
+  margin-top: 1rem;
+  box-shadow: 0 2px 10px var(--shadow);
+}

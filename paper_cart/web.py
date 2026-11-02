@@ -166,6 +166,8 @@ def create_app(
     app.state.newer_version = None
     app.state.upgrade_lock = threading.Lock()
     app.state.history = History()
+    # The last Undo or Redo note, shown on the page whose link carries its key.
+    app.state.history_note = ("", "")
 
     @app.get("/")
     def inbox(request: Request):
@@ -459,13 +461,15 @@ def create_app(
 
     @app.post("/undo")
     def undo(request: Request, next: str = Form("/")):
-        request.app.state.history.undo(request.app.state.db_path)
-        return RedirectResponse(safe_next(next), status_code=303)
+        step = request.app.state.history.undo(request.app.state.db_path)
+        note = step.note(undone=True) if step else "Nothing left to undo."
+        return RedirectResponse(_with_history_note(request.app, next, note), status_code=303)
 
     @app.post("/redo")
     def redo(request: Request, next: str = Form("/")):
-        request.app.state.history.redo(request.app.state.db_path)
-        return RedirectResponse(safe_next(next), status_code=303)
+        step = request.app.state.history.redo(request.app.state.db_path)
+        note = step.note(undone=False) if step else "Nothing left to redo."
+        return RedirectResponse(_with_history_note(request.app, next, note), status_code=303)
 
     @app.get("/settings")
     def settings_page(request: Request):
@@ -782,7 +786,18 @@ def history_buttons(request: Request) -> dict[str, str]:
     undo, redo = request.app.state.history.labels(request.app.state.db_path)
     # Keep the search, but not one-off notices such as "updated=1".
     next_path = _list_path(request.url.path, request.query_params.get("q", "").strip())
-    return {"undo": undo, "redo": redo, "next": next_path}
+    key, text = request.app.state.history_note
+    note = text if key and request.query_params.get("note") == key else ""
+    return {"undo": undo, "redo": redo, "next": next_path, "note": note}
+
+
+def _with_history_note(app: FastAPI, next_path: str, note: str) -> str:
+    """Return to the page with a key that shows this Undo or Redo note there."""
+    key = uuid.uuid4().hex[:8]
+    app.state.history_note = (key, note)
+    location = safe_next(next_path)
+    joiner = "&" if "?" in location else "?"
+    return f"{location}{joiner}{urlencode({'note': key})}"
 
 
 templates.env.globals["history_buttons"] = history_buttons

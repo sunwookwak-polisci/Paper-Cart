@@ -1781,12 +1781,21 @@ def test_undo_and_redo_paper_moves_from_the_header(tmp_path):
     page = client.post("/undo", data={"next": "/dismissed"})
     assert page.url.path == "/dismissed"
     assert statuses()["dismissed"] == ["10.1000/undo0"]
+    assert 'name="next" value="/dismissed"' in page.text
     assert "Redo removing “Undo paper 0” (⇧⌘Z)" in html.unescape(page.text)
+    assert "Undid removing “Undo paper 0”. It is now in Dismissed." in html.unescape(page.text)
+    # The note belongs to the page Undo returned to, not to the list itself.
+    assert "data-history-note" not in client.get("/dismissed").text
 
+    page = client.post("/redo", data={"next": "/journals"})
+    assert "Redid removing “Undo paper 0”. It is now in Removed." in html.unescape(page.text)
     client.post("/undo", data={"next": "/"})
+
+    page = client.post("/undo", data={"next": "/"})
     assert statuses()["new"] == ["10.1000/undo1", "10.1000/undo2"]
+    assert "Undid moving 2 papers to Read later. They are now in New." in page.text
     page = client.post("/undo", data={"next": "/?q=Undo"})
-    assert str(page.url).endswith("/?q=Undo")
+    assert page.url.params["q"] == "Undo" and page.url.params["note"]
     assert statuses()["new"] == ["10.1000/undo0", "10.1000/undo1", "10.1000/undo2"]
     assert 'title="Nothing to undo" disabled' in page.text
 
@@ -1797,6 +1806,7 @@ def test_undo_and_redo_paper_moves_from_the_header(tmp_path):
 
     # Nothing left to redo is a harmless no-op, and off-site targets stay local.
     client.post("/redo", data={"next": "/"})
+    assert "Nothing left to redo." in client.post("/redo", data={"next": "/"}).text
     assert client.post("/redo", data={"next": "https://example.com"}).url.path == "/"
     assert statuses()["removed"] == ["10.1000/undo0"]
 
@@ -1849,8 +1859,8 @@ def test_all_tab_lists_every_paper_outside_the_trash(tmp_path):
 
     # Each card offers every status except the one the paper is in now.
     reading_card = papers[papers.index('data-doi="10.1000/all1"'):papers.index('data-doi="10.1000/all0"')]
-    assert 'value="reading"' not in reading_card
-    assert 'value="new"' in reading_card
+    assert 'name="status" value="reading"' not in reading_card
+    assert 'name="status" value="new"' in reading_card
     dismissed_card = papers[papers.index('data-doi="10.1000/all2"'):papers.index('data-doi="10.1000/all1"')]
     assert 'aria-label="Remove"' in dismissed_card
 

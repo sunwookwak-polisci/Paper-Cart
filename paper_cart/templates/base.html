@@ -145,6 +145,9 @@
       {% endfor %}
       <a class="journals-link" href="/journals" {% if active == "journals" %}aria-current="page"{% endif %}>Journals</a>
     </nav>
+    {% if history.note %}
+    <p class="banner history-note" role="status" data-history-note>{{ history.note }}</p>
+    {% endif %}
     <main id="content">
       {% block main %}{% endblock %}
     </main>
