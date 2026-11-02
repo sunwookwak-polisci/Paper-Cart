@@ -376,9 +376,17 @@ def replay_changes(
     return applied
 
 
+ALL_PAPERS = "all"
+
+
 def list_papers(db_path: Path, status: str, *, query: str = "") -> list[Paper]:
-    statement = "SELECT * FROM papers WHERE status = ?"
-    parameters: list[object] = [status]
+    """List papers in one status, or every paper outside the trash for "all"."""
+    if status == ALL_PAPERS:
+        statement = "SELECT * FROM papers WHERE status != 'removed'"
+        parameters: list[object] = []
+    else:
+        statement = "SELECT * FROM papers WHERE status = ?"
+        parameters = [status]
     for term in query.split():
         like = _like_term(term)
         statement += """

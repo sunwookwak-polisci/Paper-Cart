@@ -1599,6 +1599,70 @@ def test_undo_and_redo_paper_moves_from_the_header(tmp_path):
     assert statuses()["removed"] == ["10.1000/undo0"]
 
 
+def test_all_tab_lists_every_paper_outside_the_trash(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    db_path = tmp_path / "library.sqlite"
+    journal_id = subscribe_journal(db_path, title="Example Journal", issns=("1234-5678",), publisher="")
+    upsert_papers(
+        db_path,
+        journal_id,
+        "Example Journal",
+        [
+            PaperHit(
+                doi=f"10.1000/all{n}",
+                title=f"All paper {n}",
+                authors="",
+                abstract=None,
+                published_date=f"2026-09-0{n + 1}",
+                url=f"https://doi.org/10.1000/all{n}",
+            )
+            for n in range(4)
+        ],
+    )
+    client = TestClient(app, base_url="http://127.0.0.1")
+    client.post("/papers/status", data={"doi": "10.1000/all1", "status": "reading", "next": "/"})
+    client.post("/papers/status", data={"doi": "10.1000/all2", "status": "dismissed", "next": "/"})
+    client.post("/papers/status", data={"doi": "10.1000/all3", "status": "dismissed", "next": "/"})
+    client.post("/papers/status", data={"doi": "10.1000/all3", "status": "removed", "next": "/dismissed"})
+
+    assert [paper.doi for paper in list_papers(db_path, "all")] == [
+        "10.1000/all2",
+        "10.1000/all1",
+        "10.1000/all0",
+    ]
+
+    page = client.get("/all").text
+    nav = page[page.index('aria-label="Library"'):page.index("</nav>")]
+    assert nav.index('href="/dismissed"') < nav.index('href="/all"') < nav.index('href="/removed"')
+    assert '<span class="count" data-count="all">3</span>' in nav
+    assert "<h1>All</h1>" in page
+
+    papers = _paper_list(page)
+    assert "All paper 3" not in papers
+    assert 'data-status-tag="new">New</span>' in papers
+    assert 'data-status-tag="reading">Reading</span>' in papers
+    assert 'data-status-tag="dismissed">Dismissed</span>' in papers
+
+    # Each card offers every status except the one the paper is in now.
+    reading_card = papers[papers.index('data-doi="10.1000/all1"'):papers.index('data-doi="10.1000/all0"')]
+    assert 'value="reading"' not in reading_card
+    assert 'value="new"' in reading_card
+    dismissed_card = papers[papers.index('data-doi="10.1000/all2"'):papers.index('data-doi="10.1000/all1"')]
+    assert 'aria-label="Remove"' in dismissed_card
+
+    moved = client.post(
+        "/papers/status",
+        data={"doi": "10.1000/all0", "status": "done", "next": "/all"},
+        follow_redirects=False,
+    )
+    assert moved.headers["location"] == "/all"
+    assert 'data-status-tag="done">Done</span>' in _paper_list(client.get("/all").text)
+    assert "All paper 1" in _paper_list(client.get("/all?q=all1").text)
+    assert "All paper 0" not in _paper_list(client.get("/all?q=all1").text)
+
+
 def test_journal_groups_fold_and_are_remembered(tmp_path):
     from fastapi.testclient import TestClient
 

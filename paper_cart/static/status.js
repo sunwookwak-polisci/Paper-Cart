@@ -37,11 +37,40 @@
       return;
     }
     const nextStatus = String(body.get("status") || "");
-    await replaceCounts(response);
+    const fresh = await replaceCounts(response);
     if (nextStatus === view) return;
     const article = form.closest("article");
-    if (article) removeArticle(article);
+    if (article && view === "all" && nextStatus !== "removed") {
+      refreshArticle(article, fresh);
+    } else if (article) {
+      removeArticle(article);
+    }
     restoreScroll(scrollY);
+  }
+
+  // On All the paper stays; swap in its new status label and buttons.
+  function refreshArticle(article, fresh) {
+    const doi = article.getAttribute("data-doi");
+    const updated = Array.from(fresh.querySelectorAll("[data-paper-list] article")).find(
+      (node) => node.getAttribute("data-doi") === doi
+    );
+    if (!updated) {
+      removeArticle(article);
+      return;
+    }
+    const replacement = document.importNode(updated, true);
+    const pick = article.querySelector("[data-bulk-pick]");
+    const freshPick = replacement.querySelector("[data-bulk-pick]");
+    if (pick instanceof HTMLInputElement && freshPick instanceof HTMLInputElement) {
+      freshPick.checked = pick.checked;
+    }
+    const abstract = article.querySelector("details.abstract");
+    const freshAbstract = replacement.querySelector("details.abstract");
+    if (abstract instanceof HTMLDetailsElement && freshAbstract instanceof HTMLDetailsElement) {
+      freshAbstract.open = abstract.open;
+    }
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    article.replaceWith(replacement);
   }
 
   function submitNatively(form, submitter) {
@@ -62,6 +91,7 @@
     const history = document.querySelector("[data-history]");
     const freshHistory = fresh.querySelector("[data-history]");
     if (history && freshHistory) history.replaceWith(document.importNode(freshHistory, true));
+    return fresh;
   }
 
   function removeArticle(article) {

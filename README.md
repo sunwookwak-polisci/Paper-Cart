@@ -134,6 +134,8 @@ Each article has one status. Choosing a status is how you bookmark it.
 | **Dismissed** | Hidden from New and never brought back as new |
 | **Removed** | Out of every other list. Remove an article from the Dismissed list with its trash icon. |
 
+The **All** tab lists every article except removed ones, with a label showing each article's status. You can change an article's status from there too.
+
 Changed your mind? Click **Undo** at the top of the page, or press ⌘Z, to put the last move back. A move of many articles at once is undone in one step. **Redo** (⇧⌘Z) moves it again. Paper Cart remembers your moves until you quit it.
 
 ### Find articles
