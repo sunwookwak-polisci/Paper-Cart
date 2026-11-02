@@ -1,16 +1,19 @@
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from paper_cart.crossref import PaperHit
 from paper_cart.db import init_db, list_journals, list_papers, set_status, subscribe_journal
 from paper_cart.refresh import refresh_journals, window_start
 
 
-def test_later_window_includes_the_last_check_date():
+def test_later_window_reaches_a_week_before_the_last_check():
     today = date(2026, 9, 30)
     assert window_start(None, today) == date(2026, 8, 31)
-    assert window_start("2026-09-10T15:04:05+00:00", today) == date(2026, 9, 10)
-    assert window_start("2026-09-20T18:45:00+00:00", today) == date(2026, 9, 20)
+    assert window_start("2026-09-10T15:04:05+00:00", today) == date(2026, 9, 3)
+    # A check just after midnight UTC still asks for papers Crossref dated the day before.
+    assert window_start("2026-11-01T00:10:00+00:00", date(2026, 11, 2)) <= date(2026, 10, 31)
+    # A long gap between launches leaves no hole.
+    assert window_start("2026-06-01T09:00:00+00:00", today) == date(2026, 5, 25)
 
 
 def test_second_refresh_keeps_status_and_starts_at_the_last_check(tmp_path):
@@ -44,7 +47,10 @@ def test_second_refresh_keeps_status_and_starts_at_the_last_check(tmp_path):
     assert second.added == 0
     assert [paper.status for paper in list_papers(db_path, "read_later")] == ["read_later"]
     assert list_papers(db_path, "new") == []
-    assert starts == [date(2026, 8, 31), datetime.fromisoformat(last_checked_at).date()]
+    assert starts == [
+        date(2026, 8, 31),
+        datetime.fromisoformat(last_checked_at).date() - timedelta(days=7),
+    ]
 
 
 def test_second_refresh_of_the_same_doi_keeps_status_and_does_not_insert_another_row(tmp_path):

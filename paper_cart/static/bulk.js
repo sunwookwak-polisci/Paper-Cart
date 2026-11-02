@@ -52,5 +52,8 @@
   // Single-paper moves remove cards; keep the count honest.
   new MutationObserver(sync).observe(list, { childList: true, subtree: true });
 
+  // A browser can put back ticks from an earlier visit after this script ran.
+  window.addEventListener("pageshow", sync);
+
   sync();
 })();

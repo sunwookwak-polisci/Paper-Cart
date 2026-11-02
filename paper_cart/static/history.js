@@ -52,13 +52,14 @@
       return;
     }
     // Reload the page in place so restored papers show up where they belong.
+    const target = new URL(response.url || location.href, location.href);
     try {
       sessionStorage.setItem(
         SCROLL_KEY,
-        JSON.stringify({ path: location.pathname + location.search, y: window.scrollY }),
+        JSON.stringify({ path: target.pathname + target.search, y: window.scrollY }),
       );
     } catch {}
-    location.replace(response.url || location.href);
+    location.replace(target.href);
   }
 
   function typing(target) {

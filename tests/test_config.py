@@ -27,12 +27,15 @@ def test_env_override_wins(monkeypatch, tmp_path):
     assert config.data_dir_from_env() == tmp_path / "elsewhere"
 
 
-def test_existing_checkout_library_is_kept(monkeypatch, tmp_path):
+def test_a_data_folder_in_the_current_directory_is_ignored(monkeypatch, tmp_path):
+    # Starting Paper Cart from a folder that happens to hold data/library.sqlite
+    # must not swap in that library.
     monkeypatch.delenv("PAPER_CART_DATA", raising=False)
+    monkeypatch.setattr(config, "default_data_dir", lambda: tmp_path / "user")
     monkeypatch.chdir(tmp_path)
     (tmp_path / "data").mkdir()
     (tmp_path / "data" / "library.sqlite").write_bytes(b"")
-    assert config.data_dir_from_env() == Path.cwd() / "data"
+    assert config.resolve_data_dir(None) == (tmp_path / "user", "default")
 
 
 def test_without_a_checkout_library_the_user_folder_is_used(monkeypatch, tmp_path):
@@ -118,7 +121,7 @@ def test_saved_folder_keeps_its_own_library(monkeypatch, tmp_path):
     assert (old / "library.sqlite").read_bytes() == before_old
 
 
-def test_env_checkout_and_flag_win_over_the_saved_folder(monkeypatch, tmp_path):
+def test_env_and_flag_win_over_the_saved_folder(monkeypatch, tmp_path):
     _use_user_folder(monkeypatch, tmp_path)
     chosen = tmp_path / "chosen"
     config.save_data_dir_preference(chosen)
@@ -131,7 +134,7 @@ def test_env_checkout_and_flag_win_over_the_saved_folder(monkeypatch, tmp_path):
     (checkout / "data").mkdir(parents=True)
     (checkout / "data" / "library.sqlite").write_bytes(b"keep")
     monkeypatch.chdir(checkout)
-    assert config.resolve_data_dir(None) == (checkout / "data", "checkout")
+    assert config.resolve_data_dir(None) == (chosen.resolve(), "saved")
 
     flagged = tmp_path / "flagged"
     assert config.resolve_data_dir(flagged) == (flagged, "flag")

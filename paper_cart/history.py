@@ -23,6 +23,16 @@ PHRASES = {
 }
 
 
+LIST_NAMES = {
+    "new": "New",
+    "read_later": "Read later",
+    "reading": "Reading",
+    "done": "Done",
+    "dismissed": "Dismissed",
+    "removed": "Removed",
+}
+
+
 @dataclass(frozen=True)
 class Step:
     """One click: a single paper or a whole bulk move."""
@@ -40,6 +50,17 @@ class Step:
         else:
             subject = f"{len(self.changes)} papers"
         return phrase.format(subject)
+
+    def note(self, *, undone: bool) -> str:
+        """One line for the page after Undo or Redo, naming where papers went."""
+        verb = "Undid" if undone else "Redid"
+        lists = {change.before if undone else change.after for change in self.changes}
+        if len(lists) != 1:
+            return f"{verb} {self.describe()}."
+        name = LIST_NAMES.get(lists.pop(), "")
+        if len(self.changes) == 1:
+            return f"{verb} {self.describe()}. It is now in {name}."
+        return f"{verb} {self.describe()}. They are now in {name}."
 
 
 class History:
@@ -59,6 +80,12 @@ class History:
             self._follow(db_path)
             self._undo.append(Step(tuple(changes)))
             del self._undo[: -self._limit]
+            self._redo.clear()
+
+    def forget(self) -> None:
+        """Drop every step, for when the library file itself was replaced."""
+        with self._lock:
+            self._undo.clear()
             self._redo.clear()
 
     def undo(self, db_path: Path) -> Step | None:

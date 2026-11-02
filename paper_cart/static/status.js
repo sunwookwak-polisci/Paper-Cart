@@ -3,6 +3,11 @@
   if (!list) return;
   const view = list.dataset.status || "";
 
+  // A page restored by Back can be out of date; fetch the list as it is now.
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) window.location.reload();
+  });
+
   list.addEventListener("submit", (event) => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || !form.classList.contains("status-form")) return;
@@ -34,6 +39,12 @@
     }
     if (!response.ok) {
       submitNatively(form, submitter);
+      return;
+    }
+    if (!landedOnList(response, body)) {
+      // Nothing moved here: the library was unavailable, or the paper had
+      // already left this list. Show the page the server sent instead.
+      window.location.assign(response.url);
       return;
     }
     const nextStatus = String(body.get("status") || "");
@@ -71,6 +82,13 @@
     }
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     article.replaceWith(replacement);
+  }
+
+  function landedOnList(response, body) {
+    if (!response.url) return true;
+    const landed = new URL(response.url, window.location.href);
+    const expected = new URL(String(body.get("next") || "/"), window.location.href);
+    return landed.pathname === expected.pathname && !landed.searchParams.has("moved_elsewhere");
   }
 
   function submitNatively(form, submitter) {

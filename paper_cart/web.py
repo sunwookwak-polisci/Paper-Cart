@@ -42,6 +42,7 @@ from paper_cart.export import (
     format_abstract_export,
 )
 from paper_cart.db import (
+    ALL_PAPERS,
     STATUSES,
     Journal,
     LibraryUnavailable,
@@ -59,6 +60,7 @@ from paper_cart.db import (
     list_papers,
     move_journal,
     move_papers,
+    move_papers_from,
     remove_cart_item,
     set_journal_order,
     set_setting,
@@ -77,6 +79,7 @@ from paper_cart.libraries import (
     import_target_name,
     install_library_file,
     list_library_names,
+    missing_library_name,
     recover_library_backups,
     rename_library_file,
     write_active_name,
@@ -133,8 +136,13 @@ def create_app(
         folder, source = data_dir, "given"
     folder.mkdir(parents=True, exist_ok=True)
     recover_library_backups(folder)
-    db_path = active_library_path(folder)
-    init_db(db_path)
+    missing = missing_library_name(folder)
+    if missing:
+        # Every page sends the user to Settings until a library is chosen.
+        db_path = folder / missing
+    else:
+        db_path = active_library_path(folder)
+        init_db(db_path)
 
     app = FastAPI(title="Paper Cart")
     app.mount("/static", StaticFiles(directory=str(PACKAGE / "static")), name="static")
@@ -158,6 +166,8 @@ def create_app(
     app.state.newer_version = None
     app.state.upgrade_lock = threading.Lock()
     app.state.history = History()
+    # The last Undo or Redo note, shown on the page whose link carries its key.
+    app.state.history_note = ("", "")
 
     @app.get("/")
     def inbox(request: Request):
@@ -442,21 +452,24 @@ def create_app(
         doi: str = Form(...),
         status: str = Form(...),
         next: str = Form("/"),
+        source: str = Form("", alias="from"),
     ):
-        found = _move_papers(request, [doi.strip().lower()], status)
+        found, skipped = _move_papers(request, [doi.strip().lower()], status, source)
         if not found:
             raise HTTPException(status_code=404, detail="Paper not found.")
-        return RedirectResponse(safe_next(next), status_code=303)
+        return RedirectResponse(_after_move(next, skipped), status_code=303)
 
     @app.post("/undo")
     def undo(request: Request, next: str = Form("/")):
-        request.app.state.history.undo(request.app.state.db_path)
-        return RedirectResponse(safe_next(next), status_code=303)
+        step = request.app.state.history.undo(request.app.state.db_path)
+        note = step.note(undone=True) if step else "Nothing left to undo."
+        return RedirectResponse(_with_history_note(request.app, next, note), status_code=303)
 
     @app.post("/redo")
     def redo(request: Request, next: str = Form("/")):
-        request.app.state.history.redo(request.app.state.db_path)
-        return RedirectResponse(safe_next(next), status_code=303)
+        step = request.app.state.history.redo(request.app.state.db_path)
+        note = step.note(undone=False) if step else "Nothing left to redo."
+        return RedirectResponse(_with_history_note(request.app, next, note), status_code=303)
 
     @app.get("/settings")
     def settings_page(request: Request):
@@ -550,6 +563,8 @@ def create_app(
                 init_db(folder / installed)
                 if was_active:
                     request.app.state.db_path = folder / installed
+                    # Old steps name papers in the file that was just replaced.
+                    request.app.state.history.forget()
                     replaced_active = True
         except LibraryBusy:
             return _settings_error(request, BUSY_MESSAGE, import_name=name)
@@ -632,9 +647,11 @@ def create_app(
         status: str = Form(...),
         doi: list[str] = Form(default_factory=list),
         next: str = Form("/"),
+        source: str = Form("", alias="from"),
     ):
-        _move_papers(request, [value.strip().lower() for value in doi if value.strip()], status)
-        return RedirectResponse(safe_next(next), status_code=303)
+        dois = [value.strip().lower() for value in doi if value.strip()]
+        _, skipped = _move_papers(request, dois, status, source)
+        return RedirectResponse(_after_move(next, skipped), status_code=303)
 
     @app.exception_handler(LibraryUnavailable)
     def library_unavailable(request: Request, exc: LibraryUnavailable):
@@ -669,7 +686,11 @@ def start_checkout_refresh(app: FastAPI, journals: list[Journal]) -> None:
 
 
 def start_startup_refresh(app: FastAPI) -> None:
-    if list_journals(app.state.db_path, subscribed_only=True):
+    try:
+        journals = list_journals(app.state.db_path, subscribed_only=True)
+    except LibraryUnavailable:
+        return
+    if journals:
         start_refresh(app)
 
 
@@ -698,14 +719,19 @@ def _run_refresh(app: FastAPI, journals: list[Journal] | None, *, name: str) -> 
                 except ConfigError as exc:
                     app.state.last_report = _report_error(str(exc))
                 else:
-                    app.state.last_report = refresh_journals(
-                        app.state.db_path,
-                        journals
-                        if journals is not None
-                        else list_journals(app.state.db_path, subscribed_only=True),
-                        fetch=app.state.fetch_papers,
-                        mailto=mailto,
-                    )
+                    try:
+                        app.state.last_report = refresh_journals(
+                            app.state.db_path,
+                            journals
+                            if journals is not None
+                            else list_journals(app.state.db_path, subscribed_only=True),
+                            fetch=app.state.fetch_papers,
+                            mailto=mailto,
+                        )
+                    except LibraryUnavailable:
+                        app.state.last_report = _report_error(
+                            "The library file is missing. Choose one in Settings."
+                        )
                 app.state.report_pending = True
         finally:
             _end_refresh(app)
@@ -721,17 +747,38 @@ def safe_next(value: str, default: str = "/") -> str:
     return default
 
 
-def _move_papers(request: Request, dois: list[str], status: str) -> int:
-    """Move papers, remember the move for Undo, and return how many were found."""
+def _move_papers(
+    request: Request, dois: list[str], status: str, source: str = ""
+) -> tuple[int, int]:
+    """Move papers and remember the move for Undo.
+
+    `source` is the list the buttons were on. A paper that has left that list
+    since the page loaded stays where it is. Returns how many papers were
+    found and how many were left alone for that reason.
+    """
     if status not in STATUSES:
         raise HTTPException(status_code=400, detail="Unknown status.")
+    if source and source not in STATUSES and source != ALL_PAPERS:
+        raise HTTPException(status_code=400, detail="Unknown list.")
     db_path = request.app.state.db_path
     try:
-        found, changes = move_papers(db_path, dois, status)
+        if source:
+            found, changes, elsewhere = move_papers_from(db_path, dois, status, source)
+        else:
+            (found, changes), elsewhere = move_papers(db_path, dois, status), 0
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     request.app.state.history.record(db_path, changes)
-    return found
+    return found, elsewhere
+
+
+def _after_move(next_path: str, skipped: int) -> str:
+    """Where a move returns to, with a note when some papers had already moved."""
+    location = safe_next(next_path)
+    if not skipped:
+        return location
+    joiner = "&" if "?" in location else "?"
+    return f"{location}{joiner}{urlencode({'moved_elsewhere': skipped})}"
 
 
 def history_buttons(request: Request) -> dict[str, str]:
@@ -739,7 +786,18 @@ def history_buttons(request: Request) -> dict[str, str]:
     undo, redo = request.app.state.history.labels(request.app.state.db_path)
     # Keep the search, but not one-off notices such as "updated=1".
     next_path = _list_path(request.url.path, request.query_params.get("q", "").strip())
-    return {"undo": undo, "redo": redo, "next": next_path}
+    key, text = request.app.state.history_note
+    note = text if key and request.query_params.get("note") == key else ""
+    return {"undo": undo, "redo": redo, "next": next_path, "note": note}
+
+
+def _with_history_note(app: FastAPI, next_path: str, note: str) -> str:
+    """Return to the page with a key that shows this Undo or Redo note there."""
+    key = uuid.uuid4().hex[:8]
+    app.state.history_note = (key, note)
+    location = safe_next(next_path)
+    joiner = "&" if "?" in location else "?"
+    return f"{location}{joiner}{urlencode({'note': key})}"
 
 
 templates.env.globals["history_buttons"] = history_buttons
@@ -760,7 +818,9 @@ def _papers(request: Request, status: str):
     if request.app.state.report_pending and not refreshing:
         show_report = True
         request.app.state.report_pending = False
-    return templates.TemplateResponse(
+    elsewhere_raw = request.query_params.get("moved_elsewhere", "")
+    moved_elsewhere = int(elsewhere_raw) if elsewhere_raw.isdigit() else 0
+    response = templates.TemplateResponse(
         request,
         "papers.html",
         _page_context(
@@ -780,8 +840,12 @@ def _papers(request: Request, status: str):
             empty=empty,
             show_report=show_report,
             busy=request.query_params.get("busy") == "1",
+            moved_elsewhere=moved_elsewhere,
         ),
     )
+    # The Back button must show the lists as they are now, not as they were.
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @contextmanager
@@ -885,6 +949,11 @@ def _settings_view(
     active_library = request.app.state.db_path.name
     libraries = list_library_names(request.app.state.data_dir)
     notice = ""
+    if not error and not request.app.state.db_path.is_file():
+        error = (
+            f"{active_library} is not in this folder. If you moved or renamed it, put it back "
+            "and start Paper Cart again, or use or import another library file below."
+        )
     if not error:
         notice = _library_action_notice(request, active_library)
     if request.query_params.get("saved") == "1" and not error and not notice:
@@ -1141,7 +1210,6 @@ def _end_refresh(app: FastAPI) -> None:
 _OVERRIDE_NOTE = {
     "flag": "This session was started with --data-dir.",
     "env": "This session was started with PAPER_CART_DATA.",
-    "checkout": "This session is using the data folder already in the current directory.",
 }
 
 

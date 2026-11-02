@@ -98,6 +98,30 @@ def active_library_path(folder: Path) -> Path:
     return folder / read_active_name(folder)
 
 
+def missing_library_name(folder: Path) -> str | None:
+    """The library this folder last used, when that file is gone.
+
+    Opening another file, or a new empty one, would look as if every paper
+    had vanished, so the caller asks the user to choose instead. Returns None
+    when the folder is fine, including a folder that never had a library.
+    """
+    names = list_library_names(folder)
+    saved = _read_pointer(folder)
+    if saved and not any(name.casefold() == saved.casefold() for name in names):
+        return saved
+    if names or not folder.is_dir():
+        return None
+    # iCloud's Optimize Mac Storage leaves ".library.sqlite.icloud" in place of the file.
+    for path in sorted(folder.iterdir()):
+        name = path.name
+        if name.startswith(".") and name.endswith(".icloud"):
+            try:
+                return normalize_library_name(name[1 : -len(".icloud")])
+            except ConfigError:
+                continue
+    return None
+
+
 def write_active_name(folder: Path, name: str) -> None:
     """Remember which sqlite file the next launch opens."""
     normalized = normalize_library_name(name)
