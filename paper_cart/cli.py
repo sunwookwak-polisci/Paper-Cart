@@ -118,6 +118,8 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Paper Cart is at {url}")
     print(f"Library folder: {data_dir}")
     print(f"Library file: {application.state.db_path.name}")
+    if not application.state.db_path.is_file():
+        print("That file is missing. Choose a library in Settings.")
     print("Press Ctrl+C here, or use Quit in the app, to stop it.")
     interrupted = False
     try:

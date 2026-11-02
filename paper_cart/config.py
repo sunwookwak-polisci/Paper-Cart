@@ -110,19 +110,15 @@ def save_data_dir_preference(folder: Path | str) -> Path:
 def resolve_data_dir(explicit: Path | None = None) -> tuple[Path, str]:
     """Pick the library folder and say why.
 
-    `--data-dir`, then PAPER_CART_DATA, then an existing ./data library,
-    then the folder saved in Settings, then the per-user folder.
-    The ./data check keeps a source checkout that already has a library
-    reading the same file it always has.
+    `--data-dir`, then PAPER_CART_DATA, then the folder saved in Settings,
+    then the per-user folder. The folder Paper Cart is started from never
+    matters, so every launch opens the same library.
     """
     if explicit is not None:
         return explicit.expanduser(), "flag"
     override = os.environ.get("PAPER_CART_DATA", "").strip()
     if override:
         return Path(override).expanduser(), "env"
-    checkout = Path.cwd() / "data"
-    if (checkout / "library.sqlite").is_file():
-        return checkout, "checkout"
     saved = read_saved_data_dir()
     if saved is not None:
         return saved, "saved"

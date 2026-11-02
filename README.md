@@ -199,7 +199,7 @@ Crossref offers faster, more reliable service to people who include a contact em
 
 Paper Cart asks the free [Crossref API](https://api.crossref.org) for recent articles from each journal you follow. It's the same source [Paper Picnic](https://paper-picnic.com/about) uses. Journal RSS feeds are not used in this version.
 
-- The first check for a new journal looks back 30 days. Later checks start on the date of that journal's last check, so papers published since then still show up.
+- The first check for a new journal looks back 30 days. Later checks start a week before that journal's last check, so papers published since then, and papers Crossref lists late, still show up.
 - Each article is stored once, by its DOI. Later updates refresh its details and leave your reading status alone.
 - Editorials, corrections, errata, retractions, tables of contents, and issue information are skipped.
 - Abstracts appear when the publisher shares them with Crossref. The DOI link is always there.
@@ -241,7 +241,7 @@ uv run pytest
 
 ### Choosing the library folder
 
-`paper-cart --data-dir /path/to/folder` and the `PAPER_CART_DATA` environment variable override the folder saved in Settings. A checkout that already has `data/library.sqlite` keeps using it when started from the repository root.
+`paper-cart --data-dir /path/to/folder` and the `PAPER_CART_DATA` environment variable override the folder saved in Settings. The folder you start Paper Cart from doesn't matter. To keep using a library in a checkout's `data/` folder, start it with `uv run paper-cart --data-dir data`.
 
 ### Keeping your data out of commits
 

@@ -308,32 +308,69 @@ def move_papers(
 
     Removal still applies only to dismissed papers.
     """
+    found, changes, _ = _move(db_path, dois, status, only_from=None)
+    return found, changes
+
+
+def move_papers_from(
+    db_path: Path, dois: Sequence[str], status: str, source: str
+) -> tuple[int, list[StatusChange], int]:
+    """Move papers that are still in `source` to `status`.
+
+    A button on an out-of-date page must never pull a paper out of the list
+    it has moved to since. Returns how many papers were found, what changed,
+    and how many were left alone because they are no longer in `source`.
+    """
+    if source not in STATUSES and source != ALL_PAPERS:
+        raise ValueError(source)
+    return _move(db_path, dois, status, only_from=source)
+
+
+def _move(
+    db_path: Path, dois: Sequence[str], status: str, *, only_from: str | None
+) -> tuple[int, list[StatusChange], int]:
     if status not in STATUSES:
         raise ValueError(status)
     unique = list(dict.fromkeys(dois))
     if not unique:
-        return 0, []
+        return 0, [], 0
     placeholders = ", ".join("?" for _ in unique)
     with connect(db_path) as connection:
         rows = connection.execute(
             f"SELECT doi, title, status, status_updated_at FROM papers WHERE doi IN ({placeholders})",
             unique,
         ).fetchall()
-        if status == "removed" and any(row["status"] not in {"dismissed", "removed"} for row in rows):
-            raise ValueError("Only dismissed papers can be removed.")
         by_doi = {row["doi"]: row for row in rows}
+        if only_from == ALL_PAPERS:
+            # The All list shows every paper outside the trash.
+            allowed = set(STATUSES) - {"removed"}
+        else:
+            allowed = {only_from}
+        elsewhere = [
+            doi
+            for doi in unique
+            if doi in by_doi
+            and only_from is not None
+            and by_doi[doi]["status"] not in allowed | {status}
+        ]
+        movable = [
+            by_doi[doi]
+            for doi in unique
+            if doi in by_doi and by_doi[doi]["status"] != status and doi not in elsewhere
+        ]
+        if status == "removed" and any(row["status"] != "dismissed" for row in movable):
+            raise ValueError("Only dismissed papers can be removed.")
         now = utcnow()
         changes = [
             StatusChange(
-                doi=doi,
-                title=by_doi[doi]["title"],
-                before=by_doi[doi]["status"],
-                before_at=by_doi[doi]["status_updated_at"],
+                doi=row["doi"],
+                title=row["title"],
+                before=row["status"],
+                before_at=row["status_updated_at"],
                 after=status,
                 after_at=now,
             )
-            for doi in unique
-            if doi in by_doi and by_doi[doi]["status"] != status
+            for row in movable
         ]
         if changes:
             connection.executemany(
@@ -344,7 +381,7 @@ def move_papers(
                 """,
                 [(change.after, change.after_at, change.doi) for change in changes],
             )
-    return len(rows), changes
+    return len(rows), changes, len(elsewhere)
 
 
 def replay_changes(

@@ -1,6 +1,15 @@
 (() => {
   const button = document.querySelector("[data-update-button]");
   const list = document.querySelector("[data-paper-list]");
+  // Once the reader is scrolling or clicking, a reload would shift the list
+  // under the pointer, so offer a link instead.
+  let busyReader = false;
+  const noteReader = () => {
+    busyReader = true;
+  };
+  ["pointerdown", "keydown", "wheel", "touchstart"].forEach((type) => {
+    document.addEventListener(type, noteReader, { capture: true, passive: true });
+  });
 
   async function poll() {
     let refreshing = true;
@@ -24,11 +33,11 @@
     }
     if (!list) return;
     const picked = document.querySelector("[data-bulk-pick]:checked");
-    if (!picked) {
+    if (!picked && !busyReader) {
       window.location.reload();
       return;
     }
-    // Keep the reader's selection; offer a reload instead.
+    // Keep the reader's place and selection; offer a reload instead.
     const banner = document.querySelector("[data-refresh-banner]");
     if (!banner) return;
     banner.textContent = "Update finished. ";

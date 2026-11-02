@@ -2,6 +2,7 @@ from datetime import date
 from urllib.parse import unquote
 
 import httpx
+import pytest
 
 from paper_cart.crossref import (
     PaperHit,
@@ -52,6 +53,36 @@ def test_strip_jats_and_non_article_titles():
     assert is_non_article("Table of contents")
     assert is_non_article("Erratum to: Something")
     assert not is_non_article("A model of editorial choice")
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Editorial",
+        "Correction",
+        "Correction to: A Paper",
+        "Corrigendum to \u201cA Paper\u201d",
+        "Retraction Note: A Paper",
+        "Retraction notice to: A Paper",
+        "Expression of Concern: A Paper",
+        "Issue Information",
+    ],
+)
+def test_notices_are_skipped(title):
+    assert is_non_article(title)
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Correction for Measurement Error in Survey Experiments",
+        "Editorial Boards and Gender Gaps in Political Science",
+        "Retraction Watch and the Replication Crisis",
+        "Corrections of the Record: Evidence from Newspapers",
+    ],
+)
+def test_real_articles_that_start_with_a_notice_word_are_kept(title):
+    assert not is_non_article(title)
 
 
 def test_normalize_issn_and_doi():

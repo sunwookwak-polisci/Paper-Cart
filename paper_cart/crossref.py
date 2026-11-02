@@ -16,9 +16,15 @@ API = "https://api.crossref.org"
 USER_AGENT = "PaperCart/0.1"
 _TAG = re.compile(r"<[^>]+>")
 _WHITESPACE = re.compile(r"\s+")
+# Notices, not articles: the word alone, or followed by "to", "notice" and the
+# like and then a colon, dash or quote ("Correction to: ...", "Editorial: ...").
+# A real title such as "Correction for Measurement Error ..." is kept.
 _NON_ARTICLE = re.compile(
     r"(?i)^(editorial|front matter|back matter|table of contents|"
-    r"issue information|correction|erratum|corrigendum|retraction)\b"
+    r"issue information|correction|erratum|corrigendum|retraction|"
+    r"expression of concern)"
+    r"(\s+(to|of|for|on|notice|note|statement))*"
+    r"\s*($|[:.\-\u2013\u2014(\[\"'\u2018\u201c])"
 )
 _DOI_PREFIX = re.compile(r"(?i)^https?://(dx\.)?doi\.org/")
 

@@ -7,6 +7,9 @@
 {% endblock %}
 {% block main %}
 <h1>{{ heading }}</h1>
+{% if moved_elsewhere %}
+<p class="banner" data-moved-elsewhere>{{ moved_elsewhere }} {{ "paper was" if moved_elsewhere == 1 else "papers were" }} already in another list, so {{ "it was" if moved_elsewhere == 1 else "they were" }} left there. This page now shows the list as it is.</p>
+{% endif %}
 {% if busy %}
 <p class="banner">An update is already running.</p>
 {% elif refreshing %}
@@ -91,7 +94,7 @@
 {%- set current = paper.status if active == "all" else active %}
 <article class="card" data-doi="{{ paper.doi }}">
   <div class="card-head">
-    <input type="checkbox" class="bulk-pick" form="bulk-form" name="doi" value="{{ paper.doi }}" data-bulk-pick aria-label="Select {{ paper.title }}">
+    <input type="checkbox" class="bulk-pick" form="bulk-form" name="doi" value="{{ paper.doi }}" autocomplete="off" data-bulk-pick aria-label="Select {{ paper.title }}">
     <h3><a href="{{ paper.url }}" target="_blank" rel="noopener noreferrer">{{ paper.title }}</a></h3>
   </div>
   {% if paper.authors %}<p class="authors">{{ paper.authors }}</p>{% endif %}
@@ -109,6 +112,7 @@
   {% endif %}
   <form class="status-form" method="post" action="/papers/status">
     <input type="hidden" name="doi" value="{{ paper.doi }}">
+    <input type="hidden" name="from" value="{{ current }}">
     <input type="hidden" name="next" value="{{ list_path }}">
     {{ status_buttons(status_groups, current, "Remove" if current == "dismissed" else "") }}
   </form>
@@ -116,8 +120,9 @@
 {% endmacro %}
 {% if papers %}
 <form class="bulk-bar" id="bulk-form" method="post" action="/papers/status/bulk" data-bulk>
+  <input type="hidden" name="from" value="{{ active }}">
   <input type="hidden" name="next" value="{{ list_path }}">
-  <label class="bulk-all" hidden data-bulk-all-label><input type="checkbox" data-bulk-all> Select all shown</label>
+  <label class="bulk-all" hidden data-bulk-all-label><input type="checkbox" autocomplete="off" data-bulk-all> Select all shown</label>
   <span class="bulk-count" data-bulk-count>None selected</span>
   {{ status_buttons(status_groups, active, "Remove selected" if active == "dismissed" else "") }}
 </form>

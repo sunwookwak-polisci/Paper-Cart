@@ -61,6 +61,12 @@ class History:
             del self._undo[: -self._limit]
             self._redo.clear()
 
+    def forget(self) -> None:
+        """Drop every step, for when the library file itself was replaced."""
+        with self._lock:
+            self._undo.clear()
+            self._redo.clear()
+
     def undo(self, db_path: Path) -> Step | None:
         return self._replay(db_path, undo=True)
 
