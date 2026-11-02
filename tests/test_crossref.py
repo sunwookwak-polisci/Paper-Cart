@@ -162,16 +162,36 @@ def test_fetch_recent_issues_stops_after_older_issues():
             raise AssertionError("fetched past the requested issues")
         return _json({"message": {"items": items, "total-results": 500}})
 
+    seen: list[float] = []
     groups = fetch_recent_issues(
         ("0028-0836",),
         2,
         client=httpx.Client(transport=httpx.MockTransport(handler)),
         pause=lambda: None,
+        progress=seen.append,
     )
     assert [(group.volume, group.issue) for group in groups] == [("12", "4"), ("12", "3")]
     dois = [paper.doi for group in groups for paper in group.papers]
     assert dois == ["10.1000/a", "10.1000/b", "10.1000/c"]
     assert calls["n"] == 3
+    # One issue of two found, then both (held below 1 until the ISSN is finished).
+    assert seen == [0.45, 0.9, 0.9, 1.0]
+
+
+def test_fetch_recent_issues_spreads_progress_across_issns():
+    def handler(request: httpx.Request) -> httpx.Response:
+        items = [_work("10.1000/only", "Only", volume="1", issue="1", issued=[2026, 1, 1])]
+        return _json({"message": {"items": items, "total-results": 1}})
+
+    seen: list[float] = []
+    fetch_recent_issues(
+        ("0028-0836", "1476-4687"),
+        1,
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        pause=lambda: None,
+        progress=seen.append,
+    )
+    assert seen == [0.45, 0.5, 0.95, 1.0]
 
 
 def test_fetch_recent_issues_stops_when_the_result_list_ends():

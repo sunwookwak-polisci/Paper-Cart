@@ -591,7 +591,7 @@ def test_expand_abstracts_toggle_is_remembered(tmp_path):
 def test_export_abstracts_fetches_older_issues_without_changing_library(tmp_path):
     from fastapi.testclient import TestClient
 
-    def fetch_issues(issns, issue_count, *, mailto=None, client=None, pause=None):
+    def fetch_issues(issns, issue_count, *, mailto=None, client=None, pause=None, progress=None):
         if issns == ("1234-5678",):
             papers = [
                 _hit(
@@ -767,6 +767,208 @@ def test_export_abstracts_empty_and_busy(tmp_path):
     assert "Export abstracts" in none.text
     assert "Export abstracts" not in after.text
     assert "No journals yet." in after.text
+
+
+JSON = {"Accept": "application/json"}
+
+
+def _wait_for_export(client, job_id, state="running", timeout=5.0):
+    deadline = time.monotonic() + timeout
+    while True:
+        job = client.get(f"/journals/export/{job_id}").json()
+        if job["state"] != state or time.monotonic() > deadline:
+            return job
+        time.sleep(0.01)
+
+
+def _wait_for_export_lock(app, timeout=5.0):
+    """The worker frees the export slot just after it records the final state."""
+    deadline = time.monotonic() + timeout
+    while not app.state.export_lock.acquire(blocking=False):
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+    app.state.export_lock.release()
+
+
+def test_export_job_reports_progress_and_downloads(tmp_path):
+    from fastapi.testclient import TestClient
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def fetch_issues(issns, issue_count, *, mailto=None, client=None, pause=None, progress=None):
+        if issns == ("2222-2222",):
+            progress(0.5)
+            started.set()
+            assert release.wait(5)
+        return select_recent_issues(
+            [
+                _hit(
+                    f"10.1000/{issns[0]}",
+                    f"Paper from {issns[0]}",
+                    "2026-10-01",
+                    "Ada Lovelace",
+                    "Abstract",
+                    volume="1",
+                    issue="1",
+                    issue_date="2026-10",
+                )
+            ],
+            issue_count,
+        )
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch, fetch_issues=fetch_issues)
+    db_path = tmp_path / "library.sqlite"
+    first = subscribe_journal(db_path, title="First Journal", issns=("1111-1111",), publisher="")
+    second = subscribe_journal(db_path, title="Second Journal", issns=("2222-2222",), publisher="")
+    client = TestClient(app, base_url="http://127.0.0.1")
+
+    page = client.get("/journals")
+    assert "data-export-progress" in page.text
+    assert "data-export-job" not in page.text
+
+    started_job = client.post(
+        "/journals/export",
+        data={"journal_id": [str(first), str(second)], "issues": "2"},
+        headers=JSON,
+    )
+    assert started_job.status_code == 200
+    job = started_job.json()
+    job_id = job["id"]
+    assert job["state"] == "running"
+    assert started.wait(5)
+
+    running = client.get(f"/journals/export/{job_id}").json()
+    assert running["state"] == "running"
+    assert running["message"] == "Exporting abstracts… 1 of 2 journals done"
+    assert running["current"] == "Second Journal"
+    assert running["percent"] == 75
+    assert running["download"] is None
+    assert f'data-export-job="{job_id}"' in client.get("/journals").text
+
+    busy = client.post(
+        "/journals/export",
+        data={"journal_id": str(first), "issues": "2"},
+        headers=JSON,
+    )
+    assert busy.json() == {"redirect": "/journals?notice=export_busy"}
+
+    release.set()
+    ready = _wait_for_export(client, job_id)
+    assert ready["state"] == "ready"
+    assert ready["percent"] == 100
+    assert ready["message"] == "Export ready."
+    assert ready["filename"] == "journal-abstracts.md"
+    assert ready["download"] == f"/journals/export/{job_id}/download"
+    # Leaving and coming back before the file arrives picks the job up again.
+    assert f'data-export-job="{job_id}"' in client.get("/journals").text
+
+    downloaded = client.get(ready["download"])
+    assert downloaded.status_code == 200
+    assert downloaded.headers["content-disposition"] == 'attachment; filename="journal-abstracts.md"'
+    assert "# First Journal" in downloaded.text
+    assert "Paper from 2222-2222" in downloaded.text
+    assert "data-export-job" not in client.get("/journals").text
+    assert client.get("/journals/export/not-a-job").status_code == 404
+    assert client.get("/journals/export/not-a-job/download").status_code == 404
+
+    _wait_for_export_lock(app)
+    again = client.post(
+        "/journals/export",
+        data={"journal_id": str(first), "issues": "1"},
+        headers=JSON,
+    ).json()
+    assert again["id"] != job_id
+    assert _wait_for_export(client, again["id"])["state"] == "ready"
+    assert client.get(f"/journals/export/{job_id}").status_code == 404
+
+
+def test_export_job_can_be_cancelled(tmp_path):
+    from fastapi.testclient import TestClient
+
+    started = threading.Event()
+    release = threading.Event()
+    calls: list[tuple[str, ...]] = []
+
+    def fetch_issues(issns, issue_count, *, mailto=None, client=None, pause=None, progress=None):
+        calls.append(issns)
+        progress(0.2)
+        started.set()
+        assert release.wait(5)
+        progress(0.9)
+        return []
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch, fetch_issues=fetch_issues)
+    db_path = tmp_path / "library.sqlite"
+    first = subscribe_journal(db_path, title="First Journal", issns=("1111-1111",), publisher="")
+    second = subscribe_journal(db_path, title="Second Journal", issns=("2222-2222",), publisher="")
+    client = TestClient(app, base_url="http://127.0.0.1")
+
+    job = client.post(
+        "/journals/export",
+        data={"journal_id": [str(first), str(second)], "issues": "3"},
+        headers=JSON,
+    ).json()
+    assert started.wait(5)
+    cancelling = client.post(f"/journals/export/{job['id']}/cancel").json()
+    assert cancelling["state"] == "running"
+    assert cancelling["cancelling"] is True
+    assert cancelling["message"] == "Cancelling…"
+    release.set()
+    done = _wait_for_export(client, job["id"])
+    assert done["state"] == "cancelled"
+    assert done["message"] == "Export cancelled."
+    assert calls == [("1111-1111",)]
+    assert client.get(f"/journals/export/{job['id']}/download").status_code == 404
+    assert "data-export-job" not in client.get("/journals").text
+    _wait_for_export_lock(app)
+
+
+def test_export_job_reports_empty_and_failed_runs(tmp_path):
+    from fastapi.testclient import TestClient
+
+    outcome = {"raise": False}
+
+    def fetch_issues(*args, **kwargs):
+        if outcome["raise"]:
+            raise RuntimeError("boom")
+        return []
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch, fetch_issues=fetch_issues)
+    journal_id = subscribe_journal(
+        tmp_path / "library.sqlite", title="Example Journal", issns=("1234-5678",), publisher=""
+    )
+    client = TestClient(app, base_url="http://127.0.0.1")
+
+    missed = client.post("/journals/export", data={"issues": "2"}, headers=JSON)
+    assert missed.json() == {"redirect": "/journals?notice=select_export"}
+    invalid = client.post(
+        "/journals/export", data={"journal_id": str(journal_id), "issues": "99"}, headers=JSON
+    )
+    assert invalid.json() == {"redirect": "/journals?notice=issues"}
+
+    empty = client.post(
+        "/journals/export", data={"journal_id": str(journal_id), "issues": "2"}, headers=JSON
+    ).json()
+    empty = _wait_for_export(client, empty["id"])
+    assert empty["state"] == "empty"
+    assert empty["message"] == "No recent issues were found for those journals."
+    assert empty["current"] is None
+
+    _wait_for_export_lock(app)
+    outcome["raise"] = True
+    original_hook = threading.excepthook
+    threading.excepthook = lambda args: None
+    try:
+        failed = client.post(
+            "/journals/export", data={"journal_id": str(journal_id), "issues": "2"}, headers=JSON
+        ).json()
+        failed = _wait_for_export(client, failed["id"])
+    finally:
+        threading.excepthook = original_hook
+    assert failed["state"] == "failed"
+    assert failed["message"] == "The export stopped because of an error. Try again."
+    _wait_for_export_lock(app)
 
 
 def _hit(
