@@ -88,13 +88,15 @@
   {%- endfor %}
 {% endmacro %}
 {% macro paper_card(paper, show_journal, list_path, status_groups, active, abstracts_open) %}
-<article class="card">
+{%- set current = paper.status if active == "all" else active %}
+<article class="card" data-doi="{{ paper.doi }}">
   <div class="card-head">
     <input type="checkbox" class="bulk-pick" form="bulk-form" name="doi" value="{{ paper.doi }}" data-bulk-pick aria-label="Select {{ paper.title }}">
     <h3><a href="{{ paper.url }}" target="_blank" rel="noopener noreferrer">{{ paper.title }}</a></h3>
   </div>
   {% if paper.authors %}<p class="authors">{{ paper.authors }}</p>{% endif %}
   <p class="meta">
+    {% if active == "all" %}<span class="status-tag" data-status-tag="{{ paper.status }}">{{ status_labels[paper.status] }}</span> {% endif %}
     {% if show_journal %}{{ paper.journal_title }} · {% endif %}
     {% if paper.published_date %}{{ paper.published_date }} · {% endif %}
     <a href="{{ paper.url }}" target="_blank" rel="noopener noreferrer">{{ paper.doi }}</a>
@@ -108,7 +110,7 @@
   <form class="status-form" method="post" action="/papers/status">
     <input type="hidden" name="doi" value="{{ paper.doi }}">
     <input type="hidden" name="next" value="{{ list_path }}">
-    {{ status_buttons(status_groups, active, "Remove" if active == "dismissed" else "") }}
+    {{ status_buttons(status_groups, current, "Remove" if current == "dismissed" else "") }}
   </form>
 </article>
 {% endmacro %}

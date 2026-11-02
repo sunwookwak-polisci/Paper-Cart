@@ -490,6 +490,19 @@ a { color: var(--link); }
   text-underline-offset: 0.14em;
 }
 
+.status-tag {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  vertical-align: 0.08em;
+  margin-right: 0.15rem;
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--line);

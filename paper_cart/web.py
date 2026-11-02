@@ -91,7 +91,17 @@ VIEWS = {
     "read_later": ("Read later", "Nothing saved for later."),
     "done": ("Done", "Nothing finished yet."),
     "dismissed": ("Dismissed", "Nothing dismissed."),
+    "all": ("All", "No papers yet. Subscribe to a journal, then update to fetch recent papers."),
     "removed": ("Removed", "Nothing removed."),
+}
+
+STATUS_LABELS = {
+    "new": "New",
+    "reading": "Reading",
+    "read_later": "Read later",
+    "done": "Done",
+    "dismissed": "Dismissed",
+    "removed": "Removed",
 }
 
 NAV = (
@@ -100,6 +110,7 @@ NAV = (
     ("read_later", "/later", "Read later"),
     ("done", "/done", "Done"),
     ("dismissed", "/dismissed", "Dismissed"),
+    ("all", "/all", "All"),
     ("removed", "/removed", "Removed"),
 )
 
@@ -163,6 +174,10 @@ def create_app(
     @app.get("/dismissed")
     def dismissed(request: Request):
         return _papers(request, "dismissed")
+
+    @app.get("/all")
+    def all_papers(request: Request):
+        return _papers(request, "all")
 
     @app.get("/removed")
     def removed(request: Request):
@@ -918,10 +933,13 @@ def _page_context(request: Request, **extra):
         counts = status_counts(request.app.state.db_path)
     except LibraryUnavailable:
         counts = {status: 0 for status in STATUSES}
+    # All counts every paper outside the trash.
+    counts["all"] = sum(n for status, n in counts.items() if status != "removed")
     context = {
         "counts": counts,
         "nav": NAV,
         "status_groups": STATUS_GROUPS,
+        "status_labels": STATUS_LABELS,
         "current_path": request.url.path,
         "report": request.app.state.last_report,
         "refreshing": bool(request.app.state.refreshing),
