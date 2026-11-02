@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import threading
 import uuid
 from contextlib import contextmanager
@@ -370,6 +371,9 @@ def create_app(
         group_sort: str = Form(""),
         order_open: str = Form(""),
         abstracts: str = Form(""),
+        journals: str = Form(""),
+        journal: str = Form(""),
+        journal_open: str = Form(""),
     ):
         db_path = request.app.state.db_path
         if group in {"0", "1"}:
@@ -382,6 +386,14 @@ def create_app(
             set_setting(db_path, "order_open", order_open)
         if abstracts in {"0", "1"}:
             set_setting(db_path, "abstracts_open", abstracts)
+        if journals in {"fold", "open"}:
+            _save_journal_folds(db_path, journals == "fold", [])
+        if journal and journal_open in {"0", "1"}:
+            all_folded, flipped = _journal_folds(db_path)
+            flipped = [title for title in flipped if title != journal]
+            if (journal_open == "0") != all_folded:
+                flipped.append(journal)
+            _save_journal_folds(db_path, all_folded, flipped)
         return RedirectResponse(safe_next(next), status_code=303)
 
     @app.post("/journals/order")
@@ -733,6 +745,7 @@ def _papers(request: Request, status: str):
             active=status,
             papers=papers,
             groups=_order_groups(papers, group_sort, order_journals) if grouped else [],
+            folded_journals=_folded_titles(db_path, papers) if grouped else set(),
             grouped=grouped,
             group_sort=group_sort,
             order_journals=order_journals if group_sort == "custom" else [],
@@ -950,6 +963,31 @@ def _page_context(request: Request, **extra):
     context.update(_appearance(request.app.state.db_path))
     context.update(extra)
     return context
+
+
+def _journal_folds(db_path: Path) -> tuple[bool, list[str]]:
+    """(every journal folded by default, journals flipped from that default)."""
+    try:
+        saved = json.loads(get_setting(db_path, "journal_folds", "{}"))
+    except ValueError:
+        saved = {}
+    if not isinstance(saved, dict):
+        saved = {}
+    flipped = saved.get("flipped")
+    if not isinstance(flipped, list):
+        flipped = []
+    return bool(saved.get("all")), [str(title) for title in flipped]
+
+
+def _save_journal_folds(db_path: Path, all_folded: bool, flipped: list[str]) -> None:
+    set_setting(db_path, "journal_folds", json.dumps({"all": all_folded, "flipped": flipped}))
+
+
+def _folded_titles(db_path: Path, papers: list[Paper]) -> set[str]:
+    all_folded, flipped = _journal_folds(db_path)
+    titles = {paper.journal_title for paper in papers}
+    flipped_set = set(flipped)
+    return {title for title in titles if (title in flipped_set) != all_folded}
 
 
 def _order_groups(

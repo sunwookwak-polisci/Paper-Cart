@@ -267,15 +267,8 @@
     if (!papers) return;
     const rank = new Map(titles.map((title, index) => [title, index]));
     const groups = [];
-    for (const heading of [...papers.querySelectorAll(":scope > h2.journal-name")]) {
-      const nodes = [heading];
-      let node = heading.nextElementSibling;
-      while (node && !(node instanceof HTMLElement && node.classList.contains("journal-name"))) {
-        const next = node.nextElementSibling;
-        nodes.push(node);
-        node = next;
-      }
-      groups.push({ title: heading.textContent.trim(), nodes });
+    for (const group of papers.querySelectorAll(":scope > details.journal-group")) {
+      groups.push({ title: group.dataset.journal || "", nodes: [group] });
     }
     groups.sort((left, right) => {
       const leftRank = rank.has(left.title) ? rank.get(left.title) : Number.MAX_SAFE_INTEGER;

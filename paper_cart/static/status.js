@@ -95,12 +95,14 @@
   }
 
   function removeArticle(article) {
-    const previous = article.previousElementSibling;
+    const group = article.closest("details.journal-group");
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     article.remove();
-    if (previous instanceof HTMLElement && previous.classList.contains("journal-name")) {
-      const next = previous.nextElementSibling;
-      if (!(next instanceof HTMLElement) || next.tagName !== "ARTICLE") previous.remove();
+    if (group) {
+      const left = group.querySelectorAll("article").length;
+      const count = group.querySelector("[data-journal-count]");
+      if (!left) group.remove();
+      else if (count) count.textContent = `${left} ${left === 1 ? "paper" : "papers"}`;
     }
     if (!list.querySelector("article")) {
       const empty = document.createElement("p");
