@@ -417,6 +417,8 @@ def test_upgrade_runs_brew_upgrade_for_the_cellar_prefix(monkeypatch, tmp_path):
     assert kwargs["stdin"] is subprocess.DEVNULL
     assert kwargs["env"]["HOMEBREW_NO_COLOR"] == "1"
     assert "HOMEBREW_NO_AUTO_UPDATE" not in kwargs["env"]
+    # The running app still reads pages from the old version's folder.
+    assert kwargs["env"]["HOMEBREW_NO_INSTALL_CLEANUP"] == "1"
 
 
 def test_upgrade_reports_a_brew_failure(monkeypatch, tmp_path):

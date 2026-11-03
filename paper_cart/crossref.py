@@ -16,16 +16,6 @@ API = "https://api.crossref.org"
 USER_AGENT = "PaperCart/0.1"
 _TAG = re.compile(r"<[^>]+>")
 _WHITESPACE = re.compile(r"\s+")
-# Notices, not articles: the word alone, or followed by "to", "notice" and the
-# like and then a colon, dash or quote ("Correction to: ...", "Editorial: ...").
-# A real title such as "Correction for Measurement Error ..." is kept.
-_NON_ARTICLE = re.compile(
-    r"(?i)^(editorial|front matter|back matter|table of contents|"
-    r"issue information|correction|erratum|corrigendum|retraction|"
-    r"expression of concern)"
-    r"(\s+(to|of|for|on|notice|note|statement))*"
-    r"\s*($|[:.\-\u2013\u2014(\[\"'\u2018\u201c])"
-)
 _DOI_PREFIX = re.compile(r"(?i)^https?://(dx\.)?doi\.org/")
 
 
@@ -108,10 +98,6 @@ def strip_jats(value: str | None) -> str | None:
     text = html.unescape(text)
     text = _WHITESPACE.sub(" ", text).strip()
     return text or None
-
-
-def is_non_article(title: str) -> bool:
-    return _NON_ARTICLE.match(title.strip()) is not None
 
 
 def journal_search_url(query: str, *, rows: int = 20, mailto: str | None = None) -> str:
@@ -312,12 +298,19 @@ def parse_journal(item: dict) -> JournalHit | None:
 
 
 def parse_work(item: dict) -> PaperHit | None:
+    """One Crossref journal article, or None.
+
+    Titles are never used to skip a work: editorials, corrections and other
+    notices are kept, so a real paper is never lost to a title that happens to
+    look like a notice. Only works Crossref does not call journal articles
+    (figures, datasets, peer reviews) are left out.
+    """
     work_type = item.get("type")
     if work_type and work_type != "journal-article":
         return None
     title = _first_text(item.get("title"))
     doi = normalize_doi(str(item.get("DOI") or ""))
-    if not title or not doi or is_non_article(title):
+    if not title or not doi:
         return None
     volume, issue, issue_date = _issue_fields(item)
     return PaperHit(

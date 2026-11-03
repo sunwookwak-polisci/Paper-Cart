@@ -860,6 +860,7 @@ def test_export_job_reports_progress_and_downloads(tmp_path):
     assert ready["message"] == "Export ready."
     assert ready["filename"] == "journal-abstracts.md"
     assert ready["download"] == f"/journals/export/{job_id}/download"
+    assert ready["downloaded"] is False
     # Leaving and coming back before the file arrives picks the job up again.
     assert f'data-export-job="{job_id}"' in client.get("/journals").text
 
@@ -869,6 +870,8 @@ def test_export_job_reports_progress_and_downloads(tmp_path):
     assert "# First Journal" in downloaded.text
     assert "Paper from 2222-2222" in downloaded.text
     assert "data-export-job" not in client.get("/journals").text
+    # A second Journals tab still following the job sees it was fetched and does not download again.
+    assert client.get(f"/journals/export/{job_id}").json()["downloaded"] is True
     assert client.get("/journals/export/not-a-job").status_code == 404
     assert client.get("/journals/export/not-a-job/download").status_code == 404
 

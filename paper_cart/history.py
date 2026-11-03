@@ -108,7 +108,12 @@ class History:
             source, target = (self._undo, self._redo) if undo else (self._redo, self._undo)
             while source:
                 step = source.pop()
-                applied = replay_changes(db_path, step.changes, undo=undo)
+                try:
+                    applied = replay_changes(db_path, step.changes, undo=undo)
+                except Exception:
+                    # The library could not be written; keep the step for the next try.
+                    source.append(step)
+                    raise
                 if applied:
                     done = Step(tuple(applied))
                     target.append(done)

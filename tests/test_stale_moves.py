@@ -169,6 +169,15 @@ def test_an_icloud_placeholder_is_not_replaced_by_an_empty_library(tmp_path):
     assert not (tmp_path / "library.sqlite").exists()
 
 
+def test_an_icloud_folder_names_the_library_placeholder_not_other_files(tmp_path):
+    app, _ = _app(tmp_path)
+    os.replace(app.state.db_path, tmp_path / ".library.sqlite.icloud")
+    (tmp_path / ".active-library.icloud").write_text("")
+    (tmp_path / ".config.toml.icloud").write_text("")
+    reopened = create_app(tmp_path, search=lambda *a, **k: [], fetch=lambda *a, **k: [])
+    assert reopened.state.db_path == tmp_path / "library.sqlite"
+
+
 def test_a_new_folder_still_gets_a_new_library(tmp_path):
     app = create_app(tmp_path / "fresh", search=lambda *a, **k: [], fetch=lambda *a, **k: [])
     assert app.state.db_path.is_file()
@@ -198,3 +207,11 @@ def test_all_tab_moves_check_each_paper_and_skip_the_trash(tmp_path):
     assert bulk.headers["location"] == "/all?moved_elsewhere=1"
     assert _dois(app, "read_later") == ["10.1000/p0", "10.1000/p2"]
     assert _dois(app, "removed") == ["10.1000/p1"]
+
+
+def test_a_hand_typed_moved_elsewhere_count_is_ignored(tmp_path):
+    _, client = _app(tmp_path)
+    for value in ("\u00b2", "9" * 5000, "-1", "abc"):
+        page = client.get("/", params={"moved_elsewhere": value})
+        assert page.status_code == 200
+        assert "data-moved-elsewhere" not in page.text

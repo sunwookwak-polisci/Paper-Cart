@@ -9,7 +9,6 @@ from paper_cart.crossref import (
     fetch_papers,
     fetch_recent_issues,
     format_issued,
-    is_non_article,
     journal_search_url,
     normalize_doi,
     normalize_issn,
@@ -46,43 +45,30 @@ def test_journal_search_url_encodes_query():
     assert "query=political science" in decoded or "query=political+science" in decoded
 
 
-def test_strip_jats_and_non_article_titles():
+def test_strip_jats():
     assert strip_jats("<jats:p>Hello&amp; welcome</jats:p>") == "Hello& welcome"
     assert strip_jats("   ") is None
-    assert is_non_article("Editorial: a note")
-    assert is_non_article("Table of contents")
-    assert is_non_article("Erratum to: Something")
-    assert not is_non_article("A model of editorial choice")
 
 
 @pytest.mark.parametrize(
     "title",
     [
         "Editorial",
-        "Correction",
+        "Editorial Board",
         "Correction to: A Paper",
-        "Corrigendum to \u201cA Paper\u201d",
         "Retraction Note: A Paper",
-        "Retraction notice to: A Paper",
-        "Expression of Concern: A Paper",
         "Issue Information",
-    ],
-)
-def test_notices_are_skipped(title):
-    assert is_non_article(title)
-
-
-@pytest.mark.parametrize(
-    "title",
-    [
         "Correction for Measurement Error in Survey Experiments",
         "Editorial Boards and Gender Gaps in Political Science",
-        "Retraction Watch and the Replication Crisis",
-        "Corrections of the Record: Evidence from Newspapers",
     ],
 )
-def test_real_articles_that_start_with_a_notice_word_are_kept(title):
-    assert not is_non_article(title)
+def test_no_journal_article_is_skipped_for_its_title(title):
+    paper = parse_work({"DOI": "10.1000/x", "title": [title], "type": "journal-article"})
+    assert paper is not None and paper.title == title
+
+
+def test_works_that_are_not_journal_articles_are_skipped():
+    assert parse_work({"DOI": "10.1000/fig", "title": ["Figure 1"], "type": "component"}) is None
 
 
 def test_normalize_issn_and_doi():
@@ -127,7 +113,6 @@ def test_parse_work_keeps_articles_and_drops_editorials():
     assert issued.volume == "12"
     assert issued.issue == "4"
     assert issued.issue_date == "2026-10"
-    assert parse_work({"DOI": "10.1000/ed", "title": ["Editorial"], "type": "journal-article"}) is None
     assert format_issued({"date-parts": [[2026]]}) == "2026"
 
 
@@ -251,7 +236,7 @@ def test_fetch_recent_issues_stops_when_the_result_list_ends():
     assert [paper.doi for paper in groups[0].papers] == ["10.1000/only"]
 
 
-def test_fetch_unions_created_and_published_and_drops_non_articles():
+def test_fetch_unions_created_and_published_and_keeps_notices():
     def handler(request: httpx.Request) -> httpx.Response:
         decoded = unquote(str(request.url))
         assert request.headers["user-agent"] == "PaperCart/0.1"
@@ -290,7 +275,7 @@ def test_fetch_unions_created_and_published_and_drops_non_articles():
         client=httpx.Client(transport=httpx.MockTransport(handler)),
         pause=lambda: None,
     )
-    assert [paper.doi for paper in papers] == ["10.1000/new", "10.1000/pub-only"]
+    assert [paper.doi for paper in papers] == ["10.1000/new", "10.1000/ed", "10.1000/pub-only"]
     assert papers[0].abstract == "Hello"
 
 
