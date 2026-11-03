@@ -125,6 +125,8 @@
   <label class="bulk-all" hidden data-bulk-all-label><input type="checkbox" autocomplete="off" data-bulk-all> Select all shown</label>
   <span class="bulk-count" data-bulk-count>None selected</span>
   {{ status_buttons(status_groups, active, "Remove selected" if active == "dismissed" else "") }}
+  <button type="button" data-copy-dois title="One DOI per line, for Zotero's Add by identifier">Copy DOIs</button>
+  <p class="banner" data-copy-note role="status" aria-live="polite" hidden></p>
 </form>
 {% endif %}
 <div data-paper-list data-status="{{ active }}" data-empty="{% if query %}No papers matched.{% else %}{{ empty }}{% endif %}">
