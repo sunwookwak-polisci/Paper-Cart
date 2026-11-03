@@ -235,18 +235,6 @@ header {
   gap: 0.55rem;
 }
 
-.upgrade-form {
-  display: flex;
-}
-
-.upgrade-form button {
-  white-space: nowrap;
-}
-
-.upgrade-follow {
-  margin-top: 1.25rem;
-}
-
 .wordmark {
   color: inherit;
   font-size: 1.8rem;
@@ -888,14 +876,6 @@ button.arrow-button:disabled {
 
 @media (max-width: 40rem) {
   header { align-items: flex-start; }
-  header.has-upgrade {
-    flex-wrap: wrap;
-    row-gap: 0.7rem;
-  }
-  header.has-upgrade .header-actions {
-    flex: 1 1 100%;
-    justify-content: flex-end;
-  }
   .wrap { padding-top: 1.1rem; }
 }
 
