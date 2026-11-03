@@ -12,6 +12,8 @@
   let selectionKey = null;
 
   if (allLabel) allLabel.hidden = false;
+  // Copying needs this script, so the button only shows when it runs.
+  if (copyButton) copyButton.hidden = false;
 
   function picks() {
     return Array.from(list.querySelectorAll("[data-bulk-pick]"));
@@ -118,6 +120,7 @@
       ok = false;
     }
     area.remove();
+    if (copyButton) copyButton.focus();
     return ok ? Promise.resolve() : Promise.reject(new Error("copy failed"));
   }
 

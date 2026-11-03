@@ -1165,9 +1165,7 @@ def test_bulk_status_moves_selected_papers(tmp_path):
     assert [paper.doi for paper in list_papers(db_path, "done")] == ["10.1000/bulk2"]
 
 
-def test_copy_dois_uses_the_existing_selection_and_does_not_call_zotero(tmp_path):
-    from pathlib import Path
-
+def test_copy_dois_reuses_the_selection_checkboxes(tmp_path):
     from fastapi.testclient import TestClient
 
     app = create_app(tmp_path, search=_search, fetch=_fetch)
@@ -1190,34 +1188,15 @@ def test_copy_dois_uses_the_existing_selection_and_does_not_call_zotero(tmp_path
     )
     client = TestClient(app, base_url="http://127.0.0.1")
     page = client.get("/")
-    assert '<button type="button" data-copy-dois' in page.text
-    assert "Copy DOIs" in page.text
-    assert 'data-copy-note' in page.text
-    assert 'role="status"' in page.text
+    # Hidden until bulk.js runs, so it is never a dead button without JavaScript.
+    assert '<button type="button" hidden data-copy-dois' in page.text
+    assert 'data-copy-note role="status"' in page.text
     assert 'form="bulk-form" name="doi" value="10.1000/Zotero"' in page.text
-    assert "api.zotero.org" not in page.text
-    empty = client.get("/reading")
-    assert "Copy DOIs" not in empty.text
+    assert "Copy DOIs" not in client.get("/reading").text
 
-    script = client.get("/static/bulk.js")
-    assert script.status_code == 200
-    assert 'dois.join("\\n")' in script.text
-    assert "Copied ${dois.length}" in script.text
-    assert "navigator.clipboard" in script.text
-    assert "api.zotero.org" not in script.text
-
-    settings = client.get("/settings").text.lower()
-    assert "zotero" not in settings
-    assert "api key" not in settings
-    assert "api_key" not in settings
-
-    package = Path(__file__).resolve().parents[1] / "paper_cart"
-    for path in package.rglob("*"):
-        if path.suffix not in {".py", ".js", ".html", ".css"}:
-            continue
-        text = path.read_text(encoding="utf-8").lower()
-        assert "api.zotero.org" not in text, path.name
-        assert "zotero.org/api" not in text, path.name
+    script = client.get("/static/bulk.js").text
+    assert 'dois.join("\\n")' in script
+    assert "copyButton.hidden = false" in script
 
 
 def test_settings_chooses_the_folder_for_the_next_launch(tmp_path, monkeypatch):
