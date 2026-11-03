@@ -30,7 +30,10 @@ This is already done for this repository. It's here in case the tap has to be se
    uv run pytest
    ```
 
-2. Commit, push, then tag: `git tag v0.2.0 && git push origin v0.2.0`.
+2. To write the release notes yourself, add them as `.github/release-notes/v0.2.0.md`.
+   Without that file, GitHub lists the merged pull requests instead.
+
+3. Commit, push, then tag: `git tag v0.2.0 && git push origin v0.2.0`.
 
 The `Release` workflow (`.github/workflows/release.yml`) runs only in
 `sunwookwak-polisci/Paper-Cart`, so a tag pushed to a copy of the repository doesn't release. It checks the tag matches the version,
