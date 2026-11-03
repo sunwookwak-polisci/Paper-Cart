@@ -14,6 +14,10 @@
   <a href="#for-developers">For developers</a>
 </p>
 
+<p align="center">
+  <a href="https://ko-fi.com/sunwookwak"><img src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" height="36" alt="Support Paper Cart on Ko-fi"></a>
+</p>
+
 ## What it does
 
 - **Follows the journals you pick.** Search for a journal by name and subscribe. New articles arrive from [Crossref](https://www.crossref.org), the open registry of scholarly articles.
