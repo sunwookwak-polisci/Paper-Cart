@@ -1342,6 +1342,21 @@ def test_settings_names_a_startup_override(tmp_path, monkeypatch):
     assert f'data-current-folder>{tmp_path.resolve()}<' in page.text.replace("\n", "")
 
 
+def test_pages_show_the_stopped_message_once_the_server_is_gone(tmp_path):
+    from fastapi.testclient import TestClient
+
+    client = TestClient(create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1")
+    for path in ("/", "/journals", "/settings"):
+        page = client.get(path).text
+        assert 'src="/static/stopped.js?v=' in page
+        template = page.split("<template data-stopped-page>", 1)[1].split("</template>", 1)[0]
+        assert "<h1>Paper Cart has stopped</h1>" in template
+        assert "Start Paper Cart again to reopen it." in template
+    script = client.get("/static/stopped.js")
+    assert script.status_code == 200
+    assert 'fetch("/healthz"' in script.text
+
+
 def test_health_and_quit(tmp_path):
     from fastapi.testclient import TestClient
 

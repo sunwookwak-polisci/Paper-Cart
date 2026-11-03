@@ -468,6 +468,13 @@ h3 a {
 
 .lede { margin-top: 0; }
 
+/* The page Quit shows, and the one a tab switches to once Paper Cart stops. */
+.stopped {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
 .authors, .meta { margin: 0.35rem 0 0; }
 
 a { color: var(--link); }
