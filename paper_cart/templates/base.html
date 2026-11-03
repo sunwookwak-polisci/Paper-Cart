@@ -62,17 +62,12 @@
 <body>
   <a class="skip" href="#content">Skip to content</a>
   <div class="wrap">
-    <header {% if upgrade_version %}class="has-upgrade"{% endif %}>
+    <header>
       <div class="brand">
         <a class="wordmark" href="/">Paper Cart</a>
         <span class="app-version">v{{ app_version }}</span>
       </div>
       <div class="header-actions">
-        {% if upgrade_version %}
-        <form method="post" action="/upgrade" class="upgrade-form">
-          <button type="submit" data-upgrade-button>Update to {{ upgrade_version }}</button>
-        </form>
-        {% endif %}
         {% set history = history_buttons(request) %}
         <form method="post" action="/undo" class="history-form" data-history>
           <input type="hidden" name="next" value="{{ history.next }}">

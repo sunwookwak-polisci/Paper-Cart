@@ -52,8 +52,6 @@ def test_update_notice_shows_on_every_page_when_a_newer_version_exists(tmp_path)
             "Paper Cart 0.1.3 is available. Run <code>brew upgrade paper-cart</code>"
             in page.text
         )
-        assert "data-upgrade-button" not in page.text
-    assert client.post("/upgrade").status_code == 404
 
 
 def test_theme_switch_and_palette_are_served(tmp_path):
@@ -1569,7 +1567,6 @@ def test_cross_site_writes_are_blocked(tmp_path):
     assert app.state.db_path.read_bytes() == library_before
 
     assert client.post("/quit", headers=cross_site).status_code == 403
-    assert client.post("/upgrade", headers=cross_site).status_code == 403
 
     browser = TestClient(app, base_url="http://127.0.0.1:8000")
     allowed = browser.post(
@@ -1614,7 +1611,6 @@ def test_only_loopback_hosts_are_accepted(tmp_path):
     assert written.status_code == 400
     assert not folder.exists()
     assert app.state.db_path.read_bytes() == library_before
-    assert rebind.post("/upgrade").status_code == 400
 
     local = TestClient(app, base_url="http://localhost")
     assert local.get("/healthz").status_code == 200
@@ -1625,111 +1621,6 @@ def test_only_loopback_hosts_are_accepted(tmp_path):
         headers={"Origin": "http://localhost"},
     )
     assert saved.status_code == 204
-
-
-def _cellar_with_brew(monkeypatch, tmp_path):
-    from paper_cart import homebrew
-
-    libexec = tmp_path / "opt" / "homebrew" / "Cellar" / "paper-cart" / "0.1.0" / "libexec"
-    libexec.mkdir(parents=True)
-    prefix = libexec.parents[3]
-    brew = prefix / "bin" / "brew"
-    brew.parent.mkdir(parents=True)
-    brew.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    brew.chmod(0o755)
-    monkeypatch.setattr(homebrew, "__version__", "0.1.0")
-    monkeypatch.setattr(homebrew, "_locate", lambda install_path=None: (libexec, prefix))
-    return brew
-
-
-def test_upgrade_button_runs_brew_and_leaves_the_server_running(tmp_path, monkeypatch):
-    import subprocess
-
-    from fastapi.testclient import TestClient
-
-    from paper_cart import homebrew
-
-    brew = _cellar_with_brew(monkeypatch, tmp_path)
-    app = create_app(tmp_path, search=_search, fetch=_fetch)
-    app.state.newer_version = "0.1.1"
-    stopped = threading.Event()
-    app.state.shutdown = stopped.set
-    timers = []
-
-    class RecordingTimer:
-        def __init__(self, interval, function):
-            timers.append((interval, function))
-
-        def start(self):
-            timers.append("start")
-
-    monkeypatch.setattr("paper_cart.web.threading.Timer", RecordingTimer)
-    calls = []
-
-    def run(command, **kwargs):
-        calls.append((command, kwargs))
-        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
-
-    monkeypatch.setattr(homebrew.subprocess, "run", run)
-    client = TestClient(app, base_url="http://127.0.0.1")
-
-    for path in ("/", "/journals", "/settings"):
-        page = client.get(path)
-        header = page.text.split("</header>", 1)[0]
-        assert "data-upgrade-button" in header
-        assert "Update to 0.1.1" in header
-        assert 'action="/upgrade"' in header
-        assert ">Update</button>" in header
-        assert "Paper Cart 0.1.1 is available. Run <code>brew upgrade paper-cart</code>" in page.text
-
-    blocked = client.post(
-        "/upgrade",
-        headers={"Origin": "https://evil.example", "Sec-Fetch-Site": "cross-site"},
-    )
-    assert blocked.status_code == 403
-    assert calls == []
-    assert not stopped.is_set()
-
-    rebind = TestClient(app, base_url="http://rebind.evil.example")
-    rejected = rebind.post("/upgrade", headers={"Origin": "http://rebind.evil.example"})
-    assert rejected.status_code == 400
-    assert calls == []
-
-    allowed = TestClient(app, base_url="http://127.0.0.1:8000")
-    upgraded = allowed.post("/upgrade", headers={"Origin": "http://127.0.0.1:8000"})
-    assert upgraded.status_code == 200
-    assert "Updated to 0.1.1" in upgraded.text
-    assert "Quit Paper Cart and start it again." in upgraded.text
-    assert "Your library is saved." in upgraded.text
-    assert 'action="/quit"' in upgraded.text
-    assert "Paper Cart is still running." not in upgraded.text
-    assert len(calls) == 1
-    assert calls[0][0] == [str(brew), "upgrade", "paper-cart"]
-    assert calls[0][1]["shell"] is False
-    assert not stopped.is_set()
-    assert timers == []
-
-    def fail(command, **kwargs):
-        calls.append((command, kwargs))
-        return subprocess.CompletedProcess(command, 1, stdout="", stderr="Error: formula missing")
-
-    monkeypatch.setattr(homebrew.subprocess, "run", fail)
-    failed = client.post("/upgrade")
-    assert failed.status_code == 200
-    assert "Could not update Paper Cart" in failed.text
-    assert "formula missing" in failed.text
-    assert "Paper Cart is still running." in failed.text
-    assert "Quit Paper Cart and start it again." not in failed.text
-    assert not stopped.is_set()
-    assert timers == []
-
-    assert app.state.upgrade_lock.acquire(blocking=False)
-    try:
-        busy = client.post("/upgrade")
-    finally:
-        app.state.upgrade_lock.release()
-    assert "An update is already running." in busy.text
-    assert len(calls) == 2
 
 
 def test_undo_and_redo_paper_moves_from_the_header(tmp_path):

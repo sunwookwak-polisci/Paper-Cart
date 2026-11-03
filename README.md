@@ -157,15 +157,13 @@ A large export can take a while. A progress bar under the button shows how far a
 
 ## Update Paper Cart
 
-When a new version is out, Paper Cart shows a notice at the top of the page. Click **Update to** and the new version number, wait for it to finish, then click **Quit** and run `paper-cart` again.
-
-You can also update from Terminal at any time. Quit Paper Cart first, then run:
+When a new version is out, Paper Cart shows a notice at the top of the page. To update, quit Paper Cart, then run this in Terminal:
 
 ```bash
 brew upgrade paper-cart
 ```
 
-Your library is not touched either way.
+Then run `paper-cart` again. Your library is not touched.
 
 ## Uninstall
 
@@ -224,7 +222,7 @@ uv tool install git+https://github.com/sunwookwak-polisci/Paper-Cart
 paper-cart
 ```
 
-If the `paper-cart` command isn't found, run `uv tool update-shell` and open a new terminal. Update with `uv tool upgrade paper-cart`. This also moves you to the newest code on the main branch. The update notice and **Update to** button are for Homebrew installs only, so a uv install doesn't show them. On Linux the library is kept in `~/.local/share/paper-cart`, or in `$XDG_DATA_HOME/paper-cart` when that is set.
+If the `paper-cart` command isn't found, run `uv tool update-shell` and open a new terminal. Update with `uv tool upgrade paper-cart`. This also moves you to the newest code on the main branch. The update notice is for Homebrew installs only, so a uv install doesn't show them. On Linux the library is kept in `~/.local/share/paper-cart`, or in `$XDG_DATA_HOME/paper-cart` when that is set.
 
 ### Run from a checkout
 
