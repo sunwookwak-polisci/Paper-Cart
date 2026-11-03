@@ -201,7 +201,7 @@ Paper Cart asks the free [Crossref API](https://api.crossref.org) for recent art
 
 - The first check for a new journal looks back 30 days. Later checks start a week before that journal's last check, so papers published since then, and papers Crossref lists late, still show up.
 - Each article is stored once, by its DOI. Later updates refresh its details and leave your reading status alone.
-- Editorials, corrections, errata, retractions, tables of contents, and issue information are skipped.
+- Nothing is skipped because of its title. Editorials, corrections, and similar notices show up too, so a real article is never missed. Dismiss the ones you don't need.
 - Abstracts appear when the publisher shares them with Crossref. The DOI link is always there.
 
 ## For developers
