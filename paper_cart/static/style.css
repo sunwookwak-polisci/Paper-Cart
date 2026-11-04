@@ -934,6 +934,11 @@ button.arrow-button:disabled {
 
 .bulk-count { color: var(--muted); }
 
+.bulk-bar [data-copy-note] {
+  flex: 1 0 100%;
+  margin: 0.2rem 0 0;
+}
+
 .bulk-bar button:disabled { opacity: 0.45; cursor: default; }
 
 .settings-link {
