@@ -1,4 +1,4 @@
-"""Crossref journal search and new-article fetches."""
+"""Crossref journal search, DOI and ISSN lookup, and new-article fetches."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 from datetime import date
 from typing import Callable, Iterable
-from urllib.parse import urlencode
+from urllib.parse import quote, unquote, urlencode
 
 import httpx
 
@@ -17,6 +17,15 @@ USER_AGENT = "PaperCart/0.1"
 _TAG = re.compile(r"<[^>]+>")
 _WHITESPACE = re.compile(r"\s+")
 _DOI_PREFIX = re.compile(r"(?i)^https?://(dx\.)?doi\.org/")
+_DOI_LABEL = re.compile(r"(?i)^doi:\s*")
+_BARE_DOI = re.compile(r"(?i)^10\.\d{4,9}/\S+$")
+_ISSN_LABEL = re.compile(r"(?i)^issn[\s:]+")
+NOT_A_JOURNAL_ARTICLE = "That DOI is not a journal article."
+NO_CONTAINER_JOURNAL = "Crossref does not list a journal for that DOI."
+DOI_NOT_VALID = "That DOI is not valid."
+NO_WORK_FOR_DOI = "Crossref has no record of that DOI."
+ISSN_NOT_VALID = "That ISSN is not valid."
+NO_JOURNAL_FOR_ISSN = "Crossref has no journal for that ISSN."
 
 
 class CrossrefError(Exception):
@@ -89,6 +98,74 @@ def normalize_issns(values: Iterable[str]) -> tuple[str, ...]:
 def normalize_doi(value: str) -> str:
     doi = _DOI_PREFIX.sub("", value.strip())
     return doi.lower()
+
+
+def looks_like_doi(value: str) -> bool:
+    """A bare DOI, a doi: label, or a doi.org URL. Journal names stay name search."""
+    text = value.strip()
+    if not text:
+        return False
+    if _DOI_LABEL.match(text) or _DOI_PREFIX.match(text):
+        return True
+    return _BARE_DOI.fullmatch(text) is not None
+
+
+def doi_from_query(value: str) -> str | None:
+    text = value.strip()
+    text = _DOI_LABEL.sub("", text)
+    text = _DOI_PREFIX.sub("", text)
+    # Pasted DOIs often carry the sentence's closing punctuation.
+    text = unquote(text).strip().rstrip("/.,;")
+    if _BARE_DOI.fullmatch(text):
+        return text.lower()
+    return None
+
+
+def work_url(doi: str, *, mailto: str | None = None) -> str:
+    url = f"{API}/works/{quote(doi, safe='')}"
+    if mailto:
+        return f"{url}?{urlencode({'mailto': mailto})}"
+    return url
+
+
+def _issn_query_body(value: str) -> str:
+    text = _ISSN_LABEL.sub("", value.strip(), count=1).strip()
+    compact = re.sub(r"\s+", "", text)
+    if normalize_issn(compact):
+        return compact
+    return text
+
+
+def looks_like_issn(value: str) -> bool:
+    """An ISSN, with or without the hyphen or an ISSN label. Names stay name search."""
+    return normalize_issn(_issn_query_body(value)) is not None
+
+
+def issn_checksum_ok(value: str) -> bool:
+    raw = value.strip().upper().replace("-", "")
+    if not re.fullmatch(r"\d{7}[\dX]", raw):
+        return False
+    total = sum(int(raw[index]) * (8 - index) for index in range(7))
+    remainder = total % 11
+    expected = 0 if remainder == 0 else 11 - remainder
+    check = raw[7]
+    if expected == 10:
+        return check == "X"
+    return check == str(expected)
+
+
+def issn_from_query(value: str) -> str | None:
+    issn = normalize_issn(_issn_query_body(value))
+    if issn is None or not issn_checksum_ok(issn):
+        return None
+    return issn
+
+
+def journal_issn_url(issn: str, *, mailto: str | None = None) -> str:
+    url = f"{API}/journals/{quote(issn, safe='')}"
+    if mailto:
+        return f"{url}?{urlencode({'mailto': mailto})}"
+    return url
 
 
 def strip_jats(value: str | None) -> str | None:
@@ -174,6 +251,70 @@ def search_journals(
         if hit is not None:
             hits.append(hit)
     return hits
+
+
+def journal_for_doi(
+    query: str,
+    *,
+    mailto: str | None = None,
+    client: httpx.Client | None = None,
+) -> JournalHit:
+    """Return the journal that contains this article."""
+    doi = doi_from_query(query)
+    if doi is None:
+        raise CrossrefError(DOI_NOT_VALID)
+    owns_client = client is None
+    client = client or _client(mailto)
+    try:
+        try:
+            payload = _get_json(client, work_url(doi, mailto=mailto), mailto)
+        except CrossrefError as exc:
+            if str(exc) == "Crossref returned 404.":
+                raise CrossrefError(NO_WORK_FOR_DOI) from exc
+            raise
+    finally:
+        if owns_client:
+            client.close()
+    message = payload.get("message")
+    if not isinstance(message, dict):
+        raise CrossrefError("Crossref returned an unreadable response.")
+    if message.get("type") != "journal-article":
+        raise CrossrefError(NOT_A_JOURNAL_ARTICLE)
+    hit = _container_journal(message)
+    if hit is None:
+        raise CrossrefError(NO_CONTAINER_JOURNAL)
+    return hit
+
+
+def journal_for_issn(
+    query: str,
+    *,
+    mailto: str | None = None,
+    client: httpx.Client | None = None,
+) -> JournalHit:
+    """Return the journal this ISSN identifies."""
+    issn = issn_from_query(query)
+    if issn is None:
+        raise CrossrefError(ISSN_NOT_VALID)
+    owns_client = client is None
+    client = client or _client(mailto)
+    try:
+        try:
+            payload = _get_json(client, journal_issn_url(issn, mailto=mailto), mailto)
+        except CrossrefError as exc:
+            if str(exc) == "Crossref returned 404.":
+                raise CrossrefError(NO_JOURNAL_FOR_ISSN) from exc
+            raise
+    finally:
+        if owns_client:
+            client.close()
+    message = payload.get("message")
+    if not isinstance(message, dict):
+        raise CrossrefError("Crossref returned an unreadable response.")
+    hit = parse_journal(message)
+    if hit is None:
+        raise CrossrefError(NO_JOURNAL_FOR_ISSN)
+    return hit
 
 
 def fetch_papers(
@@ -295,6 +436,14 @@ def parse_journal(item: dict) -> JournalHit | None:
         return None
     publisher = _first_text(item.get("publisher"))
     return JournalHit(title=title, issns=issns, publisher=publisher)
+
+
+def _container_journal(item: dict) -> JournalHit | None:
+    title = _first_text(item.get("container-title"))
+    issns = normalize_issns(item.get("ISSN") or [])
+    if not title or not issns:
+        return None
+    return JournalHit(title=title, issns=issns, publisher=_first_text(item.get("publisher")))
 
 
 def parse_work(item: dict) -> PaperHit | None:

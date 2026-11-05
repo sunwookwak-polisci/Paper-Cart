@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block main %}
 <h1>Journals</h1>
-<p class="lede">Search Crossref by journal name, add journals to the cart, and subscribe once. The first check looks back 30 days. Later updates start a week before the last check.</p>
+<p class="lede">Search Crossref by journal name or ISSN, or paste a paper's DOI to find the journal that published it. Add journals to the cart and subscribe once. The first check looks back 30 days. Later updates start a week before the last check.</p>
 {% if notice %}
 <p class="banner" data-notice>{{ notice }}</p>
 {% endif %}
@@ -30,9 +30,9 @@
 </form>
 {% endif %}
 <form class="search" method="get" action="/journals">
-  <label for="q">Journal name</label>
+  <label for="q">Journal name, ISSN, or DOI</label>
   <div class="search-row">
-    <input id="q" name="q" type="search" value="{{ query }}" placeholder="Nature, Science, PLOS ONE">
+    <input id="q" name="q" type="search" value="{{ query }}" placeholder="Nature, 0092-5853, or a paper DOI">
     <button class="primary" type="submit">Search</button>
   </div>
 </form>

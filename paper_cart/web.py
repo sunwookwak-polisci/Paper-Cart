@@ -28,6 +28,10 @@ from paper_cart.crossref import (
     CrossrefError,
     fetch_papers as default_fetch,
     fetch_recent_issues as default_fetch_issues,
+    journal_for_doi as default_journal_for_doi,
+    journal_for_issn as default_journal_for_issn,
+    looks_like_doi,
+    looks_like_issn,
     normalize_issns,
     search_journals as default_search,
 )
@@ -127,7 +131,13 @@ STATUS_GROUPS = (
 
 
 def create_app(
-    data_dir: Path | None = None, *, search=None, fetch=None, fetch_issues=None
+    data_dir: Path | None = None,
+    *,
+    search=None,
+    fetch=None,
+    fetch_issues=None,
+    journal_for_doi=None,
+    journal_for_issn=None,
 ) -> FastAPI:
     if data_dir is None:
         folder, source = resolve_data_dir(None)
@@ -159,6 +169,8 @@ def create_app(
     app.state.refresh_gate = threading.Lock()
     app.state.refresh_jobs = 0
     app.state.search_journals = search or default_search
+    app.state.journal_for_doi = journal_for_doi or default_journal_for_doi
+    app.state.journal_for_issn = journal_for_issn or default_journal_for_issn
     app.state.fetch_papers = fetch or default_fetch
     app.state.fetch_recent_issues = fetch_issues or default_fetch_issues
     app.state.shutdown = None
@@ -203,23 +215,27 @@ def create_app(
         known = _known_issns(request)
         cart = list_cart(request.app.state.db_path)
         cart_issns = {issn for item in cart for issn in item.issns}
-        if error is None and len(query) >= 2:
+        if error is None and looks_like_doi(query):
+            try:
+                hit = request.app.state.journal_for_doi(query, mailto=_mailto(request))
+            except CrossrefError as exc:
+                error = str(exc)
+            else:
+                results = _journal_results([hit], known, cart_issns)
+        elif error is None and looks_like_issn(query):
+            try:
+                hit = request.app.state.journal_for_issn(query, mailto=_mailto(request))
+            except CrossrefError as exc:
+                error = str(exc)
+            else:
+                results = _journal_results([hit], known, cart_issns)
+        elif error is None and len(query) >= 2:
             try:
                 hits = request.app.state.search_journals(query, mailto=_mailto(request))
             except CrossrefError as exc:
                 error = str(exc)
             else:
-                results = [
-                    {
-                        "title": hit.title,
-                        "publisher": hit.publisher,
-                        "issns": hit.issns,
-                        "issns_csv": ",".join(hit.issns),
-                        "subscribed": any(issn in known for issn in hit.issns),
-                        "in_cart": any(issn in cart_issns for issn in hit.issns),
-                    }
-                    for hit in hits
-                ]
+                results = _journal_results(hits, known, cart_issns)
         elif query and error is None:
             error = "Type at least two characters."
         notice = _NOTICE.get(request.query_params.get("notice", ""), "")
@@ -1177,6 +1193,20 @@ _NOTICE = {
     "export_empty": "No recent issues were found for those journals.",
     "export_config": "Fix the local config, then try the export again.",
 }
+
+
+def _journal_results(hits, known: set[str], cart_issns: set[str]) -> list[dict]:
+    return [
+        {
+            "title": hit.title,
+            "publisher": hit.publisher,
+            "issns": hit.issns,
+            "issns_csv": ",".join(hit.issns),
+            "subscribed": any(issn in known for issn in hit.issns),
+            "in_cart": any(issn in cart_issns for issn in hit.issns),
+        }
+        for hit in hits
+    ]
 
 
 def _known_issns(request: Request) -> set[str]:

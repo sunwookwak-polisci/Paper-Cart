@@ -20,7 +20,7 @@
 
 ## What it does
 
-- **Follows the journals you pick.** Search for a journal by name and subscribe. New articles arrive from [Crossref](https://www.crossref.org), the open registry of scholarly articles.
+- **Follows the journals you pick.** Search for a journal by name or ISSN, or paste a paper DOI, and subscribe. New articles arrive from [Crossref](https://www.crossref.org), the open registry of scholarly articles.
 - **Keeps a reading list.** Mark each article as Read later, Reading, Done, or Dismiss it.
 - **Stays private.** Your reading list is saved in a file on your computer. There is no account, no sign-up, and no cloud service.
 - **Helps you find things.** Search your lists by keyword, group articles by journal, and file many articles at once.
@@ -117,7 +117,7 @@ Click **Quit** at the top of the Paper Cart page. You can also click the Termina
 ### Follow your first journals
 
 1. Click **Journals** at the top of the page.
-2. Type a journal name, such as *Nature*, and click **Search**.
+2. Type a journal name, such as *Nature*, or paste an ISSN or a paper DOI, and click **Search**.
 3. Tick the journals you want and click **Add to cart**.
 4. Click **Subscribe**.
 
