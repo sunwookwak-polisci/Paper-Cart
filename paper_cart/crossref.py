@@ -21,7 +21,9 @@ _DOI_LABEL = re.compile(r"(?i)^doi:\s*")
 _BARE_DOI = re.compile(r"(?i)^10\.\d{4,9}/\S+$")
 _ISSN_LABEL = re.compile(r"(?i)^issn[\s:]+")
 NOT_A_JOURNAL_ARTICLE = "That DOI is not a journal article."
-NO_CONTAINER_JOURNAL = "Crossref has no container journal for that DOI."
+NO_CONTAINER_JOURNAL = "Crossref does not list a journal for that DOI."
+DOI_NOT_VALID = "That DOI is not valid."
+NO_WORK_FOR_DOI = "Crossref has no record of that DOI."
 ISSN_NOT_VALID = "That ISSN is not valid."
 NO_JOURNAL_FOR_ISSN = "Crossref has no journal for that ISSN."
 
@@ -112,7 +114,8 @@ def doi_from_query(value: str) -> str | None:
     text = value.strip()
     text = _DOI_LABEL.sub("", text)
     text = _DOI_PREFIX.sub("", text)
-    text = unquote(text).strip().rstrip("/")
+    # Pasted DOIs often carry the sentence's closing punctuation.
+    text = unquote(text).strip().rstrip("/.,;")
     if _BARE_DOI.fullmatch(text):
         return text.lower()
     return None
@@ -259,11 +262,16 @@ def journal_for_doi(
     """Return the journal that contains this article."""
     doi = doi_from_query(query)
     if doi is None:
-        raise CrossrefError(NOT_A_JOURNAL_ARTICLE)
+        raise CrossrefError(DOI_NOT_VALID)
     owns_client = client is None
     client = client or _client(mailto)
     try:
-        payload = _get_json(client, work_url(doi, mailto=mailto), mailto)
+        try:
+            payload = _get_json(client, work_url(doi, mailto=mailto), mailto)
+        except CrossrefError as exc:
+            if str(exc) == "Crossref returned 404.":
+                raise CrossrefError(NO_WORK_FOR_DOI) from exc
+            raise
     finally:
         if owns_client:
             client.close()

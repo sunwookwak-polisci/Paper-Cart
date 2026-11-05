@@ -427,8 +427,24 @@ def test_journal_for_doi_rejects_a_work_without_a_journal():
             )
         )
     )
-    with pytest.raises(CrossrefError, match="no container journal"):
+    with pytest.raises(CrossrefError, match="does not list a journal"):
         journal_for_doi("10.1000/loose", client=loose)
+
+
+def test_journal_for_doi_explains_a_missing_or_malformed_doi():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(CrossrefError, match="no record of that DOI"):
+        journal_for_doi("10.1000/missing", client=client)
+    with pytest.raises(CrossrefError, match="DOI is not valid"):
+        journal_for_doi("doi: not a doi", client=client)
+
+
+def test_doi_from_query_drops_trailing_sentence_punctuation():
+    assert doi_from_query("https://doi.org/10.1000/ABC.") == "10.1000/abc"
+    assert doi_from_query("10.1000/abc;") == "10.1000/abc"
 
 
 def test_journal_for_issn_reads_the_journal_record():

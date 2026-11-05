@@ -1012,7 +1012,7 @@ def test_doi_and_issn_lookup_use_the_same_subscribe_action(tmp_path):
         if "book" in query:
             raise CrossrefError("That DOI is not a journal article.")
         if "loose" in query:
-            raise CrossrefError("Crossref has no container journal for that DOI.")
+            raise CrossrefError("Crossref does not list a journal for that DOI.")
         return JournalHit(
             title="From DOI",
             issns=("0092-5853", "1540-5907"),
@@ -1038,7 +1038,7 @@ def test_doi_and_issn_lookup_use_the_same_subscribe_action(tmp_path):
     )
     client = TestClient(app, base_url="http://127.0.0.1")
     home = client.get("/journals")
-    assert "The ISSN is the journal's identifier." in home.text
+    assert "paste a paper's DOI to find the journal that published it" in home.text
     assert 'placeholder="Nature, 0092-5853, or a paper DOI"' in home.text
 
     by_issn = client.get("/journals?q=0092-5853")
@@ -1068,7 +1068,7 @@ def test_doi_and_issn_lookup_use_the_same_subscribe_action(tmp_path):
     assert '<p class="banner">That DOI is not a journal article.</p>' in other.text
     assert "<h2>Results</h2>" not in other.text
     loose = client.get("/journals?q=10.1000/loose")
-    assert '<p class="banner">Crossref has no container journal for that DOI.</p>' in loose.text
+    assert '<p class="banner">Crossref does not list a journal for that DOI.</p>' in loose.text
 
     added = client.post(
         "/journals/cart",
