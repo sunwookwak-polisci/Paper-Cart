@@ -147,7 +147,13 @@
       {% block main %}{% endblock %}
     </main>
   </div>
+  <template data-stopped-page>
+    <div class="wrap">
+      {% include "stopped.html" %}
+    </div>
+  </template>
   <script src="/static/history.js?v={{ app_version }}"></script>
+  <script src="/static/stopped.js?v={{ app_version }}"></script>
   {% if refreshing %}
   <script src="/static/refresh.js?v={{ app_version }}"></script>
   {% endif %}

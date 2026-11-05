@@ -1265,6 +1265,40 @@ def test_bulk_status_moves_selected_papers(tmp_path):
     assert [paper.doi for paper in list_papers(db_path, "done")] == ["10.1000/bulk2"]
 
 
+def test_copy_dois_reuses_the_selection_checkboxes(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    db_path = tmp_path / "library.sqlite"
+    journal_id = subscribe_journal(db_path, title="Example Journal", issns=("1234-5678",), publisher="")
+    upsert_papers(
+        db_path,
+        journal_id,
+        "Example Journal",
+        [
+            PaperHit(
+                doi="10.1000/Zotero",
+                title="One paper",
+                authors="",
+                abstract=None,
+                published_date="2026-09-01",
+                url="https://doi.org/10.1000/Zotero",
+            )
+        ],
+    )
+    client = TestClient(app, base_url="http://127.0.0.1")
+    page = client.get("/")
+    # Hidden until bulk.js runs, so it is never a dead button without JavaScript.
+    assert '<button type="button" hidden data-copy-dois' in page.text
+    assert 'data-copy-note role="status"' in page.text
+    assert 'form="bulk-form" name="doi" value="10.1000/Zotero"' in page.text
+    assert "Copy DOIs" not in client.get("/reading").text
+
+    script = client.get("/static/bulk.js").text
+    assert 'dois.join("\\n")' in script
+    assert "copyButton.hidden = false" in script
+
+
 def test_settings_chooses_the_folder_for_the_next_launch(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
@@ -1385,6 +1419,21 @@ def test_settings_names_a_startup_override(tmp_path, monkeypatch):
     page = TestClient(app, base_url="http://127.0.0.1").get("/settings")
     assert "This session was started with PAPER_CART_DATA." in page.text
     assert f'data-current-folder>{tmp_path.resolve()}<' in page.text.replace("\n", "")
+
+
+def test_pages_show_the_stopped_message_once_the_server_is_gone(tmp_path):
+    from fastapi.testclient import TestClient
+
+    client = TestClient(create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1")
+    for path in ("/", "/journals", "/settings"):
+        page = client.get(path).text
+        assert 'src="/static/stopped.js?v=' in page
+        template = page.split("<template data-stopped-page>", 1)[1].split("</template>", 1)[0]
+        assert "<h1>Paper Cart has stopped</h1>" in template
+        assert "Start Paper Cart again to reopen it." in template
+    script = client.get("/static/stopped.js")
+    assert script.status_code == 200
+    assert 'fetch("/healthz"' in script.text
 
 
 def test_health_and_quit(tmp_path):

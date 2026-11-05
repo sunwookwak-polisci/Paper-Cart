@@ -468,6 +468,13 @@ h3 a {
 
 .lede { margin-top: 0; }
 
+/* The page Quit shows, and the one a tab switches to once Paper Cart stops. */
+.stopped {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
 .authors, .meta { margin: 0.35rem 0 0; }
 
 a { color: var(--link); }
@@ -926,6 +933,11 @@ button.arrow-button:disabled {
 .bulk-all[hidden] { display: none; }
 
 .bulk-count { color: var(--muted); }
+
+.bulk-bar [data-copy-note] {
+  flex: 1 0 100%;
+  margin: 0.2rem 0 0;
+}
 
 .bulk-bar button:disabled { opacity: 0.45; cursor: default; }
 
