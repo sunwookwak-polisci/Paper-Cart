@@ -86,6 +86,13 @@ from paper_cart.libraries import (
 from paper_cart.refresh import refresh_journals
 
 APP_ID = "paper-cart"
+_NO_TELEMETRY = {"auto_configure": False, "tracing": False, "metrics": False, "logs": False}
+# No other site may show Paper Cart inside a frame, where clicks could be steered.
+_RESPONSE_HEADERS = {
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+}
 PACKAGE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(PACKAGE / "templates"))
 templates.env.globals["app_version"] = __version__
@@ -143,7 +150,16 @@ def create_app(
         db_path = active_library_path(folder)
         init_db(db_path)
 
-    app = FastAPI(title="Paper Cart")
+    app = FastAPI(
+        title="Paper Cart",
+        # No API explorer pages; they load scripts from a public CDN.
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        # Nothing is ever sent to an OpenTelemetry collector, and OTEL_*
+        # variables left in a shell by other tools cannot stop the app starting.
+        telemetry=_NO_TELEMETRY,
+    )
     app.mount("/static", StaticFiles(directory=str(PACKAGE / "static")), name="static")
     app.state.data_dir = folder
     app.state.data_dir_source = source
@@ -224,7 +240,7 @@ def create_app(
             error = "Type at least two characters."
         notice = _NOTICE.get(request.query_params.get("notice", ""), "")
         subscribed_raw = request.query_params.get("subscribed", "")
-        subscribed_count = int(subscribed_raw) if subscribed_raw.isdigit() else 0
+        subscribed_count = int(subscribed_raw) if _small_number(subscribed_raw) else 0
         return templates.TemplateResponse(
             request,
             "journals.html",
@@ -437,10 +453,10 @@ def create_app(
         order: list[str] = Form(default_factory=list),
     ):
         db_path = request.app.state.db_path
-        ranked = [int(value) for value in order if value.isdigit()]
+        ranked = [int(value) for value in order if _small_number(value)]
         if ranked:
             set_journal_order(db_path, ranked)
-        elif journal_id.isdigit() and direction in {"up", "down"}:
+        elif _small_number(journal_id) and direction in {"up", "down"}:
             move_journal(db_path, int(journal_id), -1 if direction == "up" else 1)
         return RedirectResponse(safe_next(next), status_code=303)
 
@@ -632,6 +648,7 @@ def create_app(
 
     @app.middleware("http")
     async def same_origin_writes(request: Request, call_next):
+        response = None
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
             origin = request.headers.get("origin")
             site = request.headers.get("sec-fetch-site")
@@ -639,8 +656,12 @@ def create_app(
             if (origin is not None and origin != expected) or (
                 origin is None and site not in (None, "same-origin", "none")
             ):
-                return Response("Cross-site request blocked.", status_code=403)
-        return await call_next(request)
+                response = Response("Cross-site request blocked.", status_code=403)
+        if response is None:
+            response = await call_next(request)
+        for name, value in _RESPONSE_HEADERS.items():
+            response.headers.setdefault(name, value)
+        return response
 
     return app
 
@@ -750,8 +771,12 @@ def _after_move(next_path: str, skipped: int) -> str:
 def history_buttons(request: Request) -> dict[str, str]:
     """Undo and Redo hover text plus where to return, for the page header."""
     undo, redo = request.app.state.history.labels(request.app.state.db_path)
+    path = request.url.path
+    if request.method != "GET":
+        # A Settings form answered with its error page; that address only takes posts.
+        path = "/settings" if path.startswith("/settings") else "/"
     # Keep the search, but not one-off notices such as "updated=1".
-    next_path = _list_path(request.url.path, request.query_params.get("q", "").strip())
+    next_path = _list_path(path, request.query_params.get("q", "").strip())
     key, text = request.app.state.history_note
     note = text if key and request.query_params.get("note") == key else ""
     return {"undo": undo, "redo": redo, "next": next_path, "note": note}
@@ -785,11 +810,7 @@ def _papers(request: Request, status: str):
         show_report = True
         request.app.state.report_pending = False
     elsewhere_raw = request.query_params.get("moved_elsewhere", "")
-    moved_elsewhere = (
-        int(elsewhere_raw)
-        if elsewhere_raw.isascii() and elsewhere_raw.isdigit() and len(elsewhere_raw) <= 6
-        else 0
-    )
+    moved_elsewhere = int(elsewhere_raw) if _small_number(elsewhere_raw) else 0
     response = templates.TemplateResponse(
         request,
         "papers.html",
@@ -1079,6 +1100,11 @@ def _order_groups(
     else:
         order = by_date(order)
     return [(title, grouped[title]) for title in order]
+
+
+def _small_number(value: str) -> bool:
+    """A short run of plain digits, safe to hand to int() and to the library."""
+    return value.isascii() and value.isdigit() and len(value) <= 9
 
 
 def _list_path(path: str, query: str) -> str:

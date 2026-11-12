@@ -101,6 +101,22 @@ def test_port_is_free_sees_a_bound_socket():
         assert not cli.running_instance(port)
 
 
+def test_port_is_free_again_right_after_the_app_stops():
+    # A server that hangs up first, as Paper Cart does when it stops, leaves its
+    # port refusing a plain bind for up to a minute although nothing listens.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind((cli.HOST, 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        with socket.create_connection((cli.HOST, port)) as browser:
+            served, _ = listener.accept()
+            served.close()
+            assert browser.recv(1) == b""
+    assert cli.port_is_free(port)
+    assert not cli.running_instance(port)
+
+
 @pytest.mark.parametrize("presses", [1, 2])
 def test_ctrl_c_stops_without_a_traceback(paper_cart, presses):
     process, _ = paper_cart
