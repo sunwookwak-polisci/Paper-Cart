@@ -37,12 +37,34 @@ def running_instance(port: int, *, host: str = HOST) -> bool:
 
 
 def port_is_free(port: int, *, host: str = HOST) -> bool:
+    if _can_bind(port, host, reuse=False):
+        return True
+    # For up to a minute after Paper Cart stops, its port refuses a plain bind
+    # although nothing listens there. The server binds the way the second
+    # probe does, so the port is free when that works and nothing answers.
+    return _can_bind(port, host, reuse=True) and not _answers(port, host)
+
+
+def _can_bind(port: int, host: str, *, reuse: bool) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        if reuse:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             probe.bind((host, port))
         except OSError:
             return False
     return True
+
+
+def _answers(port: int, host: str) -> bool:
+    """True unless a connection to the port is plainly refused."""
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            return True
+    except ConnectionRefusedError:
+        return False
+    except OSError:
+        return True
 
 
 def choose_port(start: int = PORT, tries: int = PORT_TRIES, *, host: str = HOST) -> tuple[int, bool]:

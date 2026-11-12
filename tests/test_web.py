@@ -1672,6 +1672,82 @@ def test_only_loopback_hosts_are_accepted(tmp_path):
     assert saved.status_code == 204
 
 
+def test_other_sites_cannot_frame_the_pages(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    client = TestClient(app, base_url="http://127.0.0.1")
+    blocked = client.post("/quit", headers={"Origin": "https://evil.example"})
+    assert blocked.status_code == 403
+    rebind = TestClient(app, base_url="http://rebind.evil.example").get("/")
+    assert rebind.status_code == 400
+    pages = [client.get(path) for path in ("/", "/journals", "/settings", "/static/style.css")]
+    for response in (*pages, blocked, rebind):
+        assert response.headers["x-frame-options"] == "DENY"
+        assert response.headers["content-security-policy"] == "frame-ancestors 'none'"
+        assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_api_explorer_pages_are_not_served(tmp_path):
+    from fastapi.testclient import TestClient
+
+    client = TestClient(create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1")
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404
+
+
+def test_starts_when_the_shell_has_opentelemetry_variables(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318")
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    # Entering the client runs startup, where the app used to stop with an error.
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        assert client.get("/healthz").status_code == 200
+
+
+def test_undo_on_a_settings_error_page_returns_to_settings(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    db_path = tmp_path / "library.sqlite"
+    journal_id = subscribe_journal(db_path, title="Example Journal", issns=("1234-5678",), publisher="")
+    upsert_papers(db_path, journal_id, "Example Journal", _fetch(("1234-5678",), None))
+    client = TestClient(app, base_url="http://127.0.0.1")
+    moved = client.post(
+        "/papers/status", data={"doi": "10.1000/example", "status": "done", "from": "new", "next": "/"}
+    )
+    assert moved.status_code == 200
+
+    # The error page answers the form post itself, at an address that only takes posts.
+    error_page = client.post(
+        "/settings/libraries/rename", data={"library": "library.sqlite", "name": "../elsewhere"}
+    )
+    assert "Enter a file name, not a path." in error_page.text
+    history_form = error_page.text.split('action="/undo"', 1)[1].split("</form>", 1)[0]
+    assert '<input type="hidden" name="next" value="/settings">' in history_form
+
+    undone = client.post("/undo", data={"next": "/settings"})
+    assert undone.status_code == 200
+    assert undone.url.path == "/settings"
+    assert "It is now in New." in undone.text
+    assert [paper.doi for paper in list_papers(db_path, "new")] == ["10.1000/example"]
+
+
+def test_odd_numbers_in_an_address_or_form_are_ignored(tmp_path):
+    from fastapi.testclient import TestClient
+
+    client = TestClient(create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1")
+    # "²" counts as a digit to str.isdigit() but int() refuses it.
+    for value in ("²", "9" * 5000):
+        assert client.get("/journals", params={"subscribed": value}).status_code == 200
+        assert client.get("/", params={"moved_elsewhere": value}).status_code == 200
+        reordered = client.post(
+            "/journals/order", data={"order": [value], "journal_id": value, "direction": "up"}
+        )
+        assert reordered.status_code == 200
+
+
 def test_undo_and_redo_paper_moves_from_the_header(tmp_path):
     import html
 
