@@ -1,7 +1,7 @@
 import threading
 import time
 
-from paper_cart.crossref import JournalHit, PaperHit, select_recent_issues
+from paper_cart.crossref import CrossrefError, JournalHit, PaperHit, select_recent_issues
 from paper_cart.db import list_journals_by_rank, list_papers, subscribe_journal, upsert_papers
 from paper_cart.web import create_app, safe_next
 
@@ -993,6 +993,106 @@ def _hit(
         issue=issue,
         issue_date=issue_date,
     )
+
+
+def test_doi_and_issn_lookup_use_the_same_subscribe_action(tmp_path):
+    from fastapi.testclient import TestClient
+
+    calls = {"search": [], "doi": [], "issn": []}
+
+    def search(query, *, mailto=None, client=None):
+        calls["search"].append(query)
+        return [
+            JournalHit(title=f"Hit {n}", issns=(f"1000-000{n % 10}",), publisher="Press")
+            for n in range(20)
+        ]
+
+    def lookup_doi(query, *, mailto=None, client=None):
+        calls["doi"].append(query)
+        if "book" in query:
+            raise CrossrefError("That DOI is not a journal article.")
+        if "loose" in query:
+            raise CrossrefError("Crossref does not list a journal for that DOI.")
+        return JournalHit(
+            title="From DOI",
+            issns=("0092-5853", "1540-5907"),
+            publisher="Wiley",
+        )
+
+    def lookup_issn(query, *, mailto=None, client=None):
+        calls["issn"].append(query)
+        if "0000-0000" in query:
+            raise CrossrefError("Crossref has no journal for that ISSN.")
+        return JournalHit(
+            title="From ISSN",
+            issns=("0092-5853", "1540-5907"),
+            publisher="Wiley",
+        )
+
+    app = create_app(
+        tmp_path,
+        search=search,
+        fetch=_fetch,
+        journal_for_doi=lookup_doi,
+        journal_for_issn=lookup_issn,
+    )
+    client = TestClient(app, base_url="http://127.0.0.1")
+    home = client.get("/journals")
+    assert "paste a paper's DOI to find the journal that published it" in home.text
+    assert 'placeholder="Nature, 0092-5853, or a paper DOI"' in home.text
+
+    by_issn = client.get("/journals?q=0092-5853")
+    assert "From ISSN" in by_issn.text
+    assert "0092-5853, 1540-5907" in by_issn.text
+    assert "Add to cart" in by_issn.text
+    assert calls["issn"] == ["0092-5853"]
+    assert calls["search"] == []
+    assert calls["doi"] == []
+
+    labeled = client.get("/journals?q=ISSN%201540-5907")
+    assert "From ISSN" in labeled.text
+    assert calls["search"] == []
+
+    missed = client.get("/journals?q=0000-0000")
+    assert '<p class="banner">Crossref has no journal for that ISSN.</p>' in missed.text
+    assert "<h2>Results</h2>" not in missed.text
+
+    by_doi = client.get("/journals?q=10.1111/ajps.12700")
+    assert "From DOI" in by_doi.text
+    assert "Add to cart" in by_doi.text
+    linked = client.get("/journals?q=https://doi.org/10.1111/ajps.12700")
+    assert "From DOI" in linked.text
+    assert calls["search"] == []
+
+    other = client.get("/journals?q=10.1000/book")
+    assert '<p class="banner">That DOI is not a journal article.</p>' in other.text
+    assert "<h2>Results</h2>" not in other.text
+    loose = client.get("/journals?q=10.1000/loose")
+    assert '<p class="banner">Crossref does not list a journal for that DOI.</p>' in loose.text
+
+    added = client.post(
+        "/journals/cart",
+        data={
+            "q": "0092-5853",
+            "pick": "0",
+            "title": "From ISSN",
+            "publisher": "Wiley",
+            "issns": "0092-5853,1540-5907",
+        },
+        follow_redirects=False,
+    )
+    assert added.status_code == 303
+    cart = client.get(added.headers["location"])
+    assert "In cart" in cart.text
+    assert 'action="/journals/checkout"' in cart.text
+
+    named = client.get("/journals?q=nature")
+    assert "Hit 19" in named.text
+    assert calls["search"] == ["nature"]
+    isbn = client.get("/journals?q=978-0-306-40615-7")
+    assert calls["search"] == ["nature", "978-0-306-40615-7"]
+    assert all("978" not in query for query in calls["issn"])
+    assert all("978" not in query for query in calls["doi"])
 
 
 def _catalog_search(query, *, mailto=None, client=None):

@@ -5,11 +5,18 @@ import httpx
 import pytest
 
 from paper_cart.crossref import (
+    CrossrefError,
     PaperHit,
+    doi_from_query,
     fetch_papers,
     fetch_recent_issues,
     format_issued,
+    issn_from_query,
+    journal_for_doi,
+    journal_for_issn,
     journal_search_url,
+    looks_like_doi,
+    looks_like_issn,
     normalize_doi,
     normalize_issn,
     parse_work,
@@ -17,6 +24,7 @@ from paper_cart.crossref import (
     search_journals,
     select_recent_issues,
     strip_jats,
+    work_url,
     works_url,
 )
 
@@ -43,6 +51,7 @@ def test_journal_search_url_encodes_query():
     decoded = unquote(journal_search_url("political science"))
     assert decoded.startswith("https://api.crossref.org/journals?")
     assert "query=political science" in decoded or "query=political+science" in decoded
+    assert "rows=20" in decoded
 
 
 def test_strip_jats():
@@ -309,7 +318,8 @@ def test_fetch_retries_when_crossref_is_busy():
 
 def test_search_journals_parses_issns():
     def handler(request: httpx.Request) -> httpx.Response:
-        assert "journals" in str(request.url)
+        assert "/journals" in str(request.url)
+        assert "rows=20" in str(request.url)
         return _json(
             {
                 "message": {
@@ -333,6 +343,148 @@ def test_search_journals_parses_issns():
     assert hits[0].title == "Example Journal"
     assert hits[0].issns == ("1234-5678", "8765-432X")
     assert hits[0].publisher == "Example Press"
+
+
+def test_doi_and_issn_queries_stay_on_their_own_paths():
+    assert looks_like_doi("10.1111/ajps.12700")
+    assert looks_like_doi("  HTTPS://doi.org/10.1111/ajps.12700 ")
+    assert looks_like_doi("http://dx.doi.org/10.1111/AJPS.12700")
+    assert doi_from_query("https://doi.org/10.1111%2Fajps.12700") == "10.1111/ajps.12700"
+    assert not looks_like_doi("Nature")
+    assert not looks_like_doi("0092-5853")
+    assert looks_like_issn("0092-5853")
+    assert looks_like_issn("00925853")
+    assert looks_like_issn("ISSN 1540-5907")
+    assert looks_like_issn("issn:0092-5853")
+    assert looks_like_issn("0092 5853")
+    assert issn_from_query("00925853") == "0092-5853"
+    assert issn_from_query("0000-006X") == "0000-006X"
+    assert looks_like_issn("1234-5678")
+    assert issn_from_query("1234-5678") is None
+    assert not looks_like_issn("Nature")
+    assert not looks_like_issn("PLOS ONE")
+    assert not looks_like_issn("10.1111/ajps.12700")
+    assert not looks_like_issn("978-0-306-40615-7")
+    assert not looks_like_doi("978-0-306-40615-7")
+    assert work_url("10.1111/ajps.12700") == "https://api.crossref.org/works/10.1111%2Fajps.12700"
+
+
+def test_journal_for_doi_returns_the_container_journal():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/works/" in request.url.path
+        assert "10.1111/ajps.12700" in unquote(str(request.url))
+        assert "mailto=reader@example.com" in unquote(str(request.url))
+        return _json(
+            {
+                "message": {
+                    "DOI": "10.1111/ajps.12700",
+                    "type": "journal-article",
+                    "title": ["Editorial"],
+                    "container-title": ["American Journal of Political Science"],
+                    "ISSN": ["0092-5853", "1540-5907"],
+                    "publisher": "Wiley",
+                }
+            }
+        )
+
+    hit = journal_for_doi(
+        "https://doi.org/10.1111/AJPS.12700",
+        mailto="reader@example.com",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    assert hit.title == "American Journal of Political Science"
+    assert hit.issns == ("0092-5853", "1540-5907")
+    assert hit.publisher == "Wiley"
+
+
+def test_journal_for_doi_rejects_a_work_without_a_journal():
+    def respond(message: dict) -> httpx.Response:
+        return _json({"message": message})
+
+    book = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: respond(
+                {
+                    "type": "book",
+                    "container-title": ["A Book"],
+                    "ISSN": ["0092-5853"],
+                    "publisher": "Press",
+                }
+            )
+        )
+    )
+    with pytest.raises(CrossrefError, match="not a journal article"):
+        journal_for_doi("10.1000/book", client=book)
+
+    loose = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: respond(
+                {
+                    "type": "journal-article",
+                    "title": ["A paper"],
+                    "publisher": "Press",
+                }
+            )
+        )
+    )
+    with pytest.raises(CrossrefError, match="does not list a journal"):
+        journal_for_doi("10.1000/loose", client=loose)
+
+
+def test_journal_for_doi_explains_a_missing_or_malformed_doi():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(CrossrefError, match="no record of that DOI"):
+        journal_for_doi("10.1000/missing", client=client)
+    with pytest.raises(CrossrefError, match="DOI is not valid"):
+        journal_for_doi("doi: not a doi", client=client)
+
+
+def test_doi_from_query_drops_trailing_sentence_punctuation():
+    assert doi_from_query("https://doi.org/10.1000/ABC.") == "10.1000/abc"
+    assert doi_from_query("10.1000/abc;") == "10.1000/abc"
+
+
+def test_journal_for_issn_reads_the_journal_record():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("/journals/0092-5853")
+        assert "query=" not in str(request.url)
+        assert "mailto=reader@example.com" in unquote(str(request.url))
+        return _json(
+            {
+                "message": {
+                    "title": "American Journal of Political Science",
+                    "publisher": "Wiley",
+                    "ISSN": ["0092-5853", "1540-5907"],
+                }
+            }
+        )
+
+    hit = journal_for_issn(
+        "ISSN 0092 5853",
+        mailto="reader@example.com",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    assert hit.title == "American Journal of Political Science"
+    assert hit.issns == ("0092-5853", "1540-5907")
+    assert hit.publisher == "Wiley"
+
+
+def test_journal_for_issn_explains_a_miss_and_a_bad_checksum():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/journals/0000-0000"):
+            return httpx.Response(404)
+        return httpx.Response(503)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(CrossrefError, match="no journal for that ISSN"):
+        journal_for_issn("0000-0000", client=client)
+    with pytest.raises(CrossrefError, match="returned 503"):
+        journal_for_issn("0092-5853", client=client)
+    with pytest.raises(CrossrefError, match="not valid"):
+        journal_for_issn("1234-5678", client=client)
 
 
 def _work(
