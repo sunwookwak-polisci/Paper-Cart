@@ -142,6 +142,14 @@ The **All** tab lists every article except removed ones, with a label showing ea
 
 Changed your mind? Click **Undo** at the top of the page, or press ⌘Z, to put the last move back. A move of many articles at once is undone in one step. **Redo** (⇧⌘Z) moves it again. Paper Cart remembers your moves until you quit it.
 
+### Reading insights
+
+Open **Insights** to see how many papers you finished each day or month in the active library. Choose a month for daily counts, a year for monthly counts, or **All time** for your full history. Select a bar to see the titles and journals behind that count. Dates follow your computer’s local calendar.
+
+Each paper counts once, on its first recorded move to **Done**. Moving it again keeps that date. Undoing its first completion removes the credit, and Redo restores it. When you open an older library, Paper Cart uses the saved Done date for papers still in Done. Older libraries have no completion date for papers that already left Done.
+
+**Download finished papers CSV** saves the visible list with paper metadata, the UTC finish timestamp, and the local finish date. **Download daily totals CSV** or **Download monthly totals CSV** saves the whole chart, including periods with zero papers. Both files open in Excel, R, and Python. Text that could be interpreted as a spreadsheet formula receives a leading apostrophe.
+
 ### Find articles
 
 - Each list has a **Keywords** box. Every word you type must appear in the title, authors, abstract, journal name, or DOI.

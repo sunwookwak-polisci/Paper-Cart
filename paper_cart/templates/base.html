@@ -139,6 +139,7 @@
       {% endif %}
       {% endfor %}
       <a class="journals-link" href="/journals" {% if active == "journals" %}aria-current="page"{% endif %}>Journals</a>
+      <a href="/insights" {% if active == "insights" %}aria-current="page"{% endif %}>Insights</a>
     </nav>
     {% if history.note %}
     <p class="banner history-note" role="status" data-history-note>{{ history.note }}</p>

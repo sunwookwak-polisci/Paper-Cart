@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS papers (
     url TEXT NOT NULL,
     first_seen_at TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'new',
-    status_updated_at TEXT NOT NULL
+    status_updated_at TEXT NOT NULL,
+    first_completed_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS papers_status ON papers(status);
@@ -138,9 +139,20 @@ def init_db(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with connect(db_path, create=True) as connection:
         connection.executescript(SCHEMA)
+        connection.execute("BEGIN IMMEDIATE")
         columns = {row[1] for row in connection.execute("PRAGMA table_info(journals)")}
         if "sort_rank" not in columns:
             connection.execute("ALTER TABLE journals ADD COLUMN sort_rank INTEGER")
+        paper_columns = {row[1] for row in connection.execute("PRAGMA table_info(papers)")}
+        if "first_completed_at" not in paper_columns:
+            connection.execute("ALTER TABLE papers ADD COLUMN first_completed_at TEXT")
+            connection.execute(
+                "UPDATE papers SET first_completed_at = status_updated_at WHERE status = 'done'"
+            )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS papers_completed ON papers(first_completed_at) "
+            "WHERE first_completed_at IS NOT NULL"
+        )
 
 
 def subscribe_journal(
@@ -285,6 +297,7 @@ class StatusChange:
     before_at: str
     after: str
     after_at: str
+    first_completion: bool = False
 
 
 def set_status(db_path: Path, doi: str, status: str) -> bool:
@@ -336,8 +349,10 @@ def _move(
         return 0, [], 0
     placeholders = ", ".join("?" for _ in unique)
     with connect(db_path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
         rows = connection.execute(
-            f"SELECT doi, title, status, status_updated_at FROM papers WHERE doi IN ({placeholders})",
+            f"SELECT doi, title, status, status_updated_at, first_completed_at "
+            f"FROM papers WHERE doi IN ({placeholders})",
             unique,
         ).fetchall()
         by_doi = {row["doi"]: row for row in rows}
@@ -369,6 +384,7 @@ def _move(
                 before_at=row["status_updated_at"],
                 after=status,
                 after_at=now,
+                first_completion=status == "done" and row["first_completed_at"] is None,
             )
             for row in movable
         ]
@@ -376,10 +392,12 @@ def _move(
             connection.executemany(
                 """
                 UPDATE papers
-                SET status = ?, status_updated_at = ?
+                SET status = ?, status_updated_at = ?,
+                    first_completed_at = COALESCE(first_completed_at, ?)
                 WHERE doi = ?
                 """,
-                [(change.after, change.after_at, change.doi) for change in changes],
+                [(status, now, now if change.first_completion else None, change.doi)
+                 for change in changes],
             )
     return len(rows), changes, len(elsewhere)
 
@@ -395,18 +413,20 @@ def replay_changes(
     applied: list[StatusChange] = []
     with connect(db_path) as connection:
         for change in changes:
-            expected, target, target_at = (
-                (change.after, change.before, change.before_at)
+            expected, expected_at, target, target_at = (
+                (change.after, change.after_at, change.before, change.before_at)
                 if undo
-                else (change.before, change.after, change.after_at)
+                else (change.before, change.before_at, change.after, change.after_at)
             )
             cursor = connection.execute(
                 """
                 UPDATE papers
-                SET status = ?, status_updated_at = ?
-                WHERE doi = ? AND status = ?
+                SET status = ?, status_updated_at = ?,
+                    first_completed_at = CASE WHEN ? THEN ? ELSE first_completed_at END
+                WHERE doi = ? AND status = ? AND status_updated_at = ?
                 """,
-                (target, target_at, change.doi, expected),
+                (target, target_at, change.first_completion, None if undo else change.after_at,
+                 change.doi, expected, expected_at),
             )
             if cursor.rowcount:
                 applied.append(change)

@@ -6,10 +6,12 @@ import json
 import threading
 import uuid
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -32,6 +34,7 @@ from paper_cart.crossref import (
     search_journals as default_search,
 )
 from paper_cart.history import History
+from paper_cart.insights import Insights, insights_csv, reading_insights
 from paper_cart.export import (
     MAX_ISSUES,
     ExportCancelled,
@@ -210,6 +213,34 @@ def create_app(
     @app.get("/removed")
     def removed(request: Request):
         return _papers(request, "removed")
+
+    def insights_report(request: Request, unit: str = "day", period: str = "", selected: str = ""):
+        try:
+            return reading_insights(request.app.state.db_path, unit, period, selected)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/insights")
+    def insights(request: Request, report: Insights = Depends(insights_report)):
+        return templates.TemplateResponse(
+            request,
+            "insights.html",
+            _page_context(request, heading="Insights", active="insights", insights=report,
+                          today=date.today(), peak=max(report.counts.values(), default=0)),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/insights/{dataset}.csv")
+    def download_insights(dataset: Literal["papers", "totals"], report: Insights = Depends(insights_report)):
+        totals = dataset == "totals"
+        span = report.selected if report.selected and not totals else report.period
+        name = f"{report.unit}-totals" if totals else "finished-papers"
+        return Response(
+            insights_csv(report, totals=totals),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{name}-{span}.csv"',
+                     "Cache-Control": "no-store"},
+        )
 
     @app.get("/journals")
     def journals(request: Request, q: str = ""):
@@ -777,6 +808,10 @@ def history_buttons(request: Request) -> dict[str, str]:
         path = "/settings" if path.startswith("/settings") else "/"
     # Keep the search, but not one-off notices such as "updated=1".
     next_path = _list_path(path, request.query_params.get("q", "").strip())
+    if path == "/insights":
+        filters = {k: request.query_params[k] for k in ("unit", "period", "selected")
+                   if k in request.query_params}
+        next_path = path + ("?" + urlencode(filters) if filters else "")
     key, text = request.app.state.history_note
     note = text if key and request.query_params.get("note") == key else ""
     return {"undo": undo, "redo": redo, "next": next_path, "note": note}

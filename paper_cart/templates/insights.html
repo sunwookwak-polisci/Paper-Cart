@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block main %}
+{% set daily = insights.unit == "day" %}
+{% set range_query = "unit=" ~ insights.unit ~ "&period=" ~ insights.period %}
+{% set full_query = range_query ~ ("&selected=" ~ insights.selected if insights.selected else "") %}
+{% set year = insights.period[:4] if insights.period != "all" else today.year %}
+<h1>Reading insights</h1>
+<div class="insights-controls">
+  <div class="insights-modes" role="group" aria-label="Chart interval">
+    <a href="/insights?unit=day&amp;period={{ insights.period if daily else (year|string ~ '-' ~ today.isoformat()[5:7]) }}" {% if daily %}aria-current="true"{% endif %}>Daily</a>
+    <a href="/insights?unit=month&amp;period={{ year }}" {% if not daily %}aria-current="true"{% endif %}>Monthly</a>
+  </div>
+  <form action="/insights" method="get">
+    <input type="hidden" name="unit" value="{{ insights.unit }}">
+    {% if daily %}
+    <label for="insights-period">Month</label>
+    <input id="insights-period" type="month" name="period" value="{{ insights.period }}" required>
+    {% else %}
+    <label for="insights-period">Year</label>
+    <input id="insights-period" type="number" name="period" min="1" max="9999" value="{{ year }}" required>
+    {% endif %}
+    <button type="submit">Show</button>
+  </form>
+  <a href="/insights?unit=month&amp;period=all" {% if insights.period == "all" %}aria-current="true"{% endif %}>All time</a>
+</div>
+
+<section aria-labelledby="period-heading">
+  <h2 id="period-heading">{{ insights.label }}</h2>
+  {% set total = insights.counts.values()|sum %}
+  <p class="insights-total"><strong>{{ total }}</strong> {{ "paper" if total == 1 else "papers" }} finished</p>
+  <div class="insights-chart" data-unit="{{ insights.unit }}" role="group" aria-label="Papers finished by {{ insights.unit }}">
+    {% for start, count in insights.counts.items() %}
+    {% set label = start.strftime('%B %d, %Y' if daily else '%B %Y') %}
+    <a class="insights-bar" href="/insights?{{ range_query }}&amp;selected={{ start }}#finished" title="{{ label }} · {{ count }}" aria-label="{{ label }}, {{ count }} {{ 'paper' if count == 1 else 'papers' }} finished" {% if start == insights.selected %}aria-current="true"{% endif %}>
+      <span class="bar-track"><span class="bar-count">{{ count }}</span><span class="bar-fill" style="height: {{ 100 * count / (peak or 1) }}%"></span></span>
+      <span class="bar-label">{{ start.day if daily else start.strftime('%b') }}{% if insights.period == "all" %}<br>{{ start.year }}{% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
+  <a class="insights-download" href="/insights/totals.csv?{{ range_query }}">Download {{ "daily" if daily else "monthly" }} totals CSV</a>
+</section>
+
+<section id="finished" aria-labelledby="finished-heading" tabindex="-1">
+  <h2 id="finished-heading">Finished papers{% if insights.selected %} · {{ insights.selected.strftime('%B %d, %Y' if daily else '%B %Y') }} ({{ insights.papers|length }}){% endif %}</h2>
+  <div class="insights-links">
+    {% if insights.selected %}<a href="/insights?{{ range_query }}#finished">Clear selection</a>{% endif %}
+    <a href="/insights/papers.csv?{{ full_query }}">Download finished papers CSV</a>
+  </div>
+  {% if insights.papers %}
+  <ul class="results">
+    {% for paper in insights.papers %}
+    <li class="insights-paper">
+      <time datetime="{{ paper.completed_date_local }}">{{ paper.completed_date_local }}</time>
+      <div><a href="{{ paper.url }}" target="_blank" rel="noopener noreferrer">{{ paper.title }}</a>
+        <p class="meta">{{ paper.journal }}</p></div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">No papers finished in this period.</p>
+  {% endif %}
+</section>
+{% endblock %}
