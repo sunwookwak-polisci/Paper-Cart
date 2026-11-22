@@ -21,11 +21,11 @@
 ## What it does
 
 - **Follows the journals you pick.** Search for a journal by name and subscribe. New articles arrive from [Crossref](https://www.crossref.org), the open registry of scholarly articles.
-- **Keeps a reading list.** Mark each article as Read later, Reading, Done, or Dismiss it.
+- **Keeps a reading list.** Mark each article as To Read, In Progress, Done, or Dismiss it.
 - **Stays private.** Your reading list is saved in a file on your computer. There is no account, no sign-up, and no cloud service.
 - **Helps you find things.** Search your lists by keyword, group articles by journal, and file many articles at once.
 - **Exports abstracts.** Download the titles, authors, DOIs, and abstracts from recent issues as one Markdown file.
-- **Looks the way you like.** Light, dark, or match your Mac, with eight color themes and a serif or sans font.
+- **Looks the way you like.** Light, dark, or match your Mac, with eight color themes and IBM Plex Serif by default or IBM Plex Sans.
 
 <table>
   <tr>
@@ -132,8 +132,8 @@ Each article has one status. Choosing a status is how you bookmark it.
 | Status | What it means |
 | --- | --- |
 | **New** | Just arrived |
-| **Read later** | Saved for later |
-| **Reading** | In progress |
+| **To Read** | Saved for later |
+| **In Progress** | Currently reading |
 | **Done** | Finished |
 | **Dismissed** | Hidden from New and never brought back as new |
 | **Removed** | Out of every other list. Remove an article from the Dismissed list with its trash icon. |
@@ -141,6 +141,18 @@ Each article has one status. Choosing a status is how you bookmark it.
 The **All** tab lists every article except removed ones, with a label showing each article's status. You can change an article's status from there too.
 
 Changed your mind? Click **Undo** at the top of the page, or press ⌘Z, to put the last move back. A move of many articles at once is undone in one step. **Redo** (⇧⌘Z) moves it again. Paper Cart remembers your moves until you quit it.
+
+### Reading insights
+
+Open **Insights** and choose **Sorted**, **Started**, or **Finished**. The daily contribution graph opens on the last 365 days, with one square per day and one column per week. Choose a year or **All time** to change the date range. The graph always shows individual days. Hover or focus a square for the exact count, or select it to see the papers and journals. With the graph focused, use the arrow keys to move and Enter to select. Dates follow your computer’s local calendar.
+
+A paper counts as sorted the first time it is put in **To Read**. It earns one start on its first recorded move to **In Progress** and one finish on its first recorded move to **Done**. Reopening or resuming a paper keeps those dates. Moving directly to Done records only a finish. Undo removes the credit for an undone first move. Redo restores its original timestamp.
+
+The current and longest streaks use all recorded days for the selected activity, even when viewing an earlier month. A day with one or more starts counts as one day in the start streak. Sorts and finishes work the same way. A run ending yesterday stays current until the end of today.
+
+Older libraries recorded the latest status change. For papers still in To Read, In Progress, or Done at upgrade, Paper Cart can recover the date they most recently entered that status. Earlier activity can be missing from the heatmap and streaks.
+
+The papers CSV contains the visible papers with metadata, the UTC activity timestamp, and the local date. The totals CSV groups the displayed date range by day or month, including zeros, in a `papers_sorted`, `papers_started`, or `papers_finished` column. Both files open in Excel, R, and Python. Text that could be interpreted as a spreadsheet formula receives a leading apostrophe.
 
 ### Find articles
 
@@ -267,4 +279,4 @@ The color themes use the published palettes of:
 
 ## License
 
-Paper Cart is released under the [MIT License](LICENSE). The bundled Source Sans 3 and Source Serif 4 fonts keep their own SIL Open Font License, included in [`paper_cart/static/fonts/`](paper_cart/static/fonts/).
+Paper Cart is released under the [MIT License](LICENSE). The bundled IBM Plex Sans, IBM Plex Serif, Source Sans 3, and Source Serif 4 fonts keep their own SIL Open Font License, included in [`paper_cart/static/fonts/`](paper_cart/static/fonts/).

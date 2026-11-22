@@ -70,11 +70,11 @@ def test_undo_and_redo_walk_the_steps(tmp_path):
 
     history.record(db_path, move_papers(db_path, ["10.1000/p0"], "dismissed")[1])
     history.record(db_path, move_papers(db_path, ["10.1000/p1", "10.1000/p2"], "read_later")[1])
-    assert history.labels(db_path) == ("moving 2 papers to Read later", "")
+    assert history.labels(db_path) == ("moving 2 papers to To Read", "")
 
-    assert history.undo(db_path).describe() == "moving 2 papers to Read later"
+    assert history.undo(db_path).describe() == "moving 2 papers to To Read"
     assert _dois(db_path, "new") == ["10.1000/p1", "10.1000/p2"]
-    assert history.labels(db_path) == ("dismissing “Paper 0”", "moving 2 papers to Read later")
+    assert history.labels(db_path) == ("dismissing “Paper 0”", "moving 2 papers to To Read")
 
     history.undo(db_path)
     assert _dois(db_path, "new") == ["10.1000/p0", "10.1000/p1", "10.1000/p2"]

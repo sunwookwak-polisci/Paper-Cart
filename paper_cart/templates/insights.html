@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block head %}<script defer src="/static/insights.js?v={{ app_version }}"></script>{% endblock %}
+{% block main %}
+{% set activity = insights.activity %}
+{% set range_only = "unit=" ~ insights.unit ~ "&period=" ~ insights.period %}
+{% set range_query = range_only ~ "&activity=" ~ activity %}
+{% set full_query = range_query ~ ("&selected=" ~ insights.selected if insights.selected else "") %}
+{% set year = insights.period[:4] if insights.period not in ("all", "recent") else today.year %}
+<h1>Reading insights</h1>
+<div class="insights-controls">
+  <div class="insights-modes" role="group" aria-label="Reading activity">
+    {% for value in ("sorted", "started", "finished") %}
+    <a href="/insights?{{ range_only }}&amp;activity={{ value }}" {% if value == activity %}aria-current="true"{% endif %}>{{ value|capitalize }}</a>
+    {% endfor %}
+  </div>
+  <form action="/insights" method="get">
+    <input type="hidden" name="activity" value="{{ activity }}">
+    <input type="hidden" name="unit" value="{{ insights.unit }}">
+    <label for="insights-period">Year</label>
+    <input id="insights-period" type="number" name="period" min="1" max="9999" value="{{ year }}" required>
+    <button type="submit">Show</button>
+  </form>
+  <a href="/insights?activity={{ activity }}&amp;unit=day&amp;period=recent" {% if insights.period == "recent" %}aria-current="true"{% endif %}>Last 365 days</a>
+  <a href="/insights?activity={{ activity }}&amp;unit=day&amp;period=all" {% if insights.period == "all" %}aria-current="true"{% endif %}>All time</a>
+</div>
+
+<section aria-labelledby="period-heading">
+  <h2 id="period-heading">{{ insights.label }}</h2>
+  {% set total = insights.counts.values()|sum %}
+  <div class="insights-stats">
+    <p class="insights-total"><strong>{{ total }}</strong> {{ "paper" if total == 1 else "papers" }} {{ activity }}</p>
+    <p><strong>{{ insights.current_streak }} {{ "day" if insights.current_streak == 1 else "days" }}</strong>Current streak</p>
+    <p><strong>{{ insights.longest_streak }} {{ "day" if insights.longest_streak == 1 else "days" }}</strong>Longest streak</p>
+  </div>
+  <p class="insights-note">Streaks count consecutive days across your library with at least one paper {{ activity }}. Yesterday’s streak stays current through today.</p>
+  {% macro cell(start, count, column, row) %}
+    {% set label = start.strftime('%B %d, %Y') ~ ', ' ~ count ~ (' paper ' if count == 1 else ' papers ') ~ activity %}
+    {% set level = 0 if count == 0 else 1 if count == 1 else 2 if count <= 3 else 3 if count <= 6 else 4 %}
+    <a class="heat-cell" data-level="{{ level }}" style="grid-column:{{ column }};grid-row:{{ row }}" href="/insights?{{ range_query }}&amp;selected={{ start }}#finished" title="{{ label }}" aria-label="{{ label }}" {% if start == insights.selected %}aria-current="true"{% endif %}></a>
+  {% endmacro %}
+  <div class="contributions" data-contributions data-period="{{ insights.period }}" data-unit="{{ insights.unit }}">
+    <div class="contribution-scroll">
+      <div class="contribution-grid" role="group" aria-label="Papers {{ activity }} by {{ insights.unit }}">
+        {% for day, row in (("Mon", 3), ("Wed", 5), ("Fri", 7)) %}<span class="axis-label" style="grid-column:1;grid-row:{{ row }}">{{ day }}</span>{% endfor %}
+        {% set first = insights.counts|first %}
+        {% set offset = (first.weekday() + 1) % 7 %}
+        {% for start, count in insights.counts.items() %}
+          {% set column = (offset + loop.index0) // 7 + 2 %}
+          {% if start.day == 1 or (loop.first and start.day <= 14) %}
+          <span class="month-label" style="grid-column:{{ column }};grid-row:1">{{ start.year if insights.period == 'all' and (loop.first or start.month == 1) else start.strftime('%b') }}</span>
+          {% endif %}
+          {{ cell(start, count, column, (offset + loop.index0) % 7 + 2) }}
+        {% endfor %}
+      </div>
+    </div>
+    <div class="heat-footer">
+      <span class="heat-detail" data-heat-detail>Hover or focus a square for its count.</span>
+      <div class="heat-legend" aria-label="Heatmap scale">
+        Less {% for label in ("0", "1", "2–3", "4–6", "7+") %}<i data-level="{{ loop.index0 }}" title="{{ label }} papers {{ activity }}"></i>{% endfor %} More
+      </div>
+    </div>
+  </div>
+  <a class="insights-download" href="/insights/totals.csv?{{ range_query }}">Download daily totals CSV</a>
+  <a class="insights-download" href="/insights/totals.csv?unit=month&amp;period={{ insights.period }}&amp;activity={{ activity }}">Download monthly totals CSV</a>
+</section>
+
+<section id="finished" aria-labelledby="finished-heading" tabindex="-1">
+  <h2 id="finished-heading">{{ activity|capitalize }} papers{% if insights.selected %} · {{ insights.selected.strftime('%B %d, %Y') }} ({{ insights.papers|length }}){% endif %}</h2>
+  <div class="insights-links">
+    {% if insights.selected %}<a href="/insights?{{ range_query }}#finished">Clear selection</a>{% endif %}
+    <a href="/insights/papers.csv?{{ full_query }}">Download {{ activity }} papers CSV</a>
+  </div>
+  {% if insights.papers %}
+  <ul class="results">
+    {% for paper in insights.papers %}
+    <li class="insights-paper">
+      <time datetime="{{ paper.local_date }}">{{ paper.local_date }}</time>
+      <div><a href="{{ paper.url }}" target="_blank" rel="noopener noreferrer">{{ paper.title }}</a>
+        <p class="meta">{{ paper.journal }}</p></div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">No papers {{ activity }} in this period.</p>
+  {% endif %}
+  {% if activity == "sorted" %}<p class="insights-note">Each paper counts the first time it is recorded in To Read. For older libraries, only papers still in To Read at upgrade have a recoverable sorting date.</p>{% endif %}
+  {% if activity == "started" %}<p class="insights-note">Each paper counts on its first recorded move to In Progress. Older libraries can recover a start only for papers still in In Progress at upgrade.</p>{% endif %}
+</section>
+{% endblock %}

@@ -6,10 +6,12 @@ import json
 import threading
 import uuid
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -32,6 +34,7 @@ from paper_cart.crossref import (
     search_journals as default_search,
 )
 from paper_cart.history import History
+from paper_cart.insights import Insights, insights_csv, reading_insights
 from paper_cart.export import (
     MAX_ISSUES,
     ExportCancelled,
@@ -97,10 +100,18 @@ PACKAGE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(PACKAGE / "templates"))
 templates.env.globals["app_version"] = __version__
 
+def stylesheet_revision() -> int:
+    """Refresh the browser cache when a local CSS edit keeps the same app version."""
+    return (PACKAGE / "static" / "style.css").stat().st_mtime_ns
+
+
+templates.env.globals["stylesheet_revision"] = stylesheet_revision
+
+
 VIEWS = {
     "new": ("New", "Nothing new. Subscribe to a journal, then update to fetch recent papers."),
-    "reading": ("Reading", "Nothing in progress."),
-    "read_later": ("Read later", "Nothing saved for later."),
+    "reading": ("In Progress", "Nothing in progress."),
+    "read_later": ("To Read", "Nothing saved for later."),
     "done": ("Done", "Nothing finished yet."),
     "dismissed": ("Dismissed", "Nothing dismissed."),
     "all": ("All", "No papers yet. Subscribe to a journal, then update to fetch recent papers."),
@@ -109,8 +120,8 @@ VIEWS = {
 
 STATUS_LABELS = {
     "new": "New",
-    "reading": "Reading",
-    "read_later": "Read later",
+    "reading": "In Progress",
+    "read_later": "To Read",
     "done": "Done",
     "dismissed": "Dismissed",
     "removed": "Removed",
@@ -118,8 +129,8 @@ STATUS_LABELS = {
 
 NAV = (
     ("new", "/", "New"),
-    ("reading", "/reading", "Reading"),
-    ("read_later", "/later", "Read later"),
+    ("read_later", "/later", "To Read"),
+    ("reading", "/reading", "In Progress"),
     ("done", "/done", "Done"),
     ("dismissed", "/dismissed", "Dismissed"),
     ("all", "/all", "All"),
@@ -128,8 +139,8 @@ NAV = (
 
 # Sorting calls sit on the left of each paper; reading progress sits on the right.
 STATUS_GROUPS = (
-    (("new", "New"), ("read_later", "Read later"), ("dismissed", "Dismiss")),
-    (("reading", "Reading"), ("done", "Done")),
+    (("new", "New"), ("read_later", "To Read"), ("dismissed", "Dismiss")),
+    (("reading", "In Progress"), ("done", "Done")),
 )
 
 
@@ -210,6 +221,42 @@ def create_app(
     @app.get("/removed")
     def removed(request: Request):
         return _papers(request, "removed")
+
+    def insights_report(request: Request, unit: str = "day", period: str = "", selected: str = "",
+                        activity: str = "finished"):
+        if request.url.path == "/insights" and unit == "month":
+            # Old monthly drill-down links now open the daily graph for that month.
+            period = selected[:7] if selected else period or str(date.today().year)
+            unit, selected = "day", ""
+        try:
+            return reading_insights(request.app.state.db_path, unit, period, selected, activity)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/insights")
+    def insights(request: Request, report: Insights = Depends(insights_report)):
+        return templates.TemplateResponse(
+            request,
+            "insights.html",
+            _page_context(request, heading="Insights", active="insights", insights=report,
+                          today=date.today()),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/insights/{dataset}.csv")
+    def download_insights(dataset: Literal["papers", "totals"], report: Insights = Depends(insights_report)):
+        totals = dataset == "totals"
+        span = report.selected if report.selected and not totals else report.period
+        name = f"{report.unit}-totals" if totals else "finished-papers"
+        if report.activity != "finished":
+            suffix = "starts" if report.activity == "started" else "sorted"
+            name = f"{report.unit}-{suffix}" if totals else f"{report.activity}-papers"
+        return Response(
+            insights_csv(report, totals=totals),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{name}-{span}.csv"',
+                     "Cache-Control": "no-store"},
+        )
 
     @app.get("/journals")
     def journals(request: Request, q: str = ""):
@@ -777,6 +824,10 @@ def history_buttons(request: Request) -> dict[str, str]:
         path = "/settings" if path.startswith("/settings") else "/"
     # Keep the search, but not one-off notices such as "updated=1".
     next_path = _list_path(path, request.query_params.get("q", "").strip())
+    if path == "/insights":
+        filters = {k: request.query_params[k] for k in ("unit", "period", "selected", "activity")
+                   if k in request.query_params}
+        next_path = path + ("?" + urlencode(filters) if filters else "")
     key, text = request.app.state.history_note
     note = text if key and request.query_params.get("note") == key else ""
     return {"undo": undo, "redo": redo, "next": next_path, "note": note}
