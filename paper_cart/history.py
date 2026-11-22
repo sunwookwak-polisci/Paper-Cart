@@ -12,11 +12,11 @@ from paper_cart.db import StatusChange, replay_changes
 LIMIT = 100
 TITLE_CHARS = 60
 
-# Read as "Undo dismissing “A paper”" or "Redo moving 3 papers to Reading".
+# Read as "Undo dismissing “A paper”" or "Redo moving 3 papers to In Progress".
 PHRASES = {
     "new": "moving {} to New",
-    "read_later": "moving {} to Read later",
-    "reading": "moving {} to Reading",
+    "read_later": "moving {} to To Read",
+    "reading": "moving {} to In Progress",
     "done": "moving {} to Done",
     "dismissed": "dismissing {}",
     "removed": "removing {}",
@@ -25,8 +25,8 @@ PHRASES = {
 
 LIST_NAMES = {
     "new": "New",
-    "read_later": "Read later",
-    "reading": "Reading",
+    "read_later": "To Read",
+    "reading": "In Progress",
     "done": "Done",
     "dismissed": "Dismissed",
     "removed": "Removed",

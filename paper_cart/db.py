@@ -13,6 +13,8 @@ from typing import Iterator, Sequence
 
 STATUSES = ("new", "read_later", "reading", "done", "dismissed", "removed")
 
+MILESTONES = {"read_later": "sorted", "reading": "started", "done": "completed"}
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS journals (
     id INTEGER PRIMARY KEY,
@@ -52,7 +54,9 @@ CREATE TABLE IF NOT EXISTS papers (
     first_seen_at TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'new',
     status_updated_at TEXT NOT NULL,
-    first_completed_at TEXT
+    first_completed_at TEXT,
+    first_started_at TEXT,
+    first_sorted_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS papers_status ON papers(status);
@@ -144,15 +148,18 @@ def init_db(db_path: Path) -> None:
         if "sort_rank" not in columns:
             connection.execute("ALTER TABLE journals ADD COLUMN sort_rank INTEGER")
         paper_columns = {row[1] for row in connection.execute("PRAGMA table_info(papers)")}
-        if "first_completed_at" not in paper_columns:
-            connection.execute("ALTER TABLE papers ADD COLUMN first_completed_at TEXT")
+        for status, event in MILESTONES.items():
+            column = f"first_{event}_at"
+            if column not in paper_columns:
+                connection.execute(f"ALTER TABLE papers ADD COLUMN {column} TEXT")
+                # The latest move is recoverable only for papers still in that status.
+                connection.execute(
+                    f"UPDATE papers SET {column} = status_updated_at WHERE status = ?", (status,)
+                )
             connection.execute(
-                "UPDATE papers SET first_completed_at = status_updated_at WHERE status = 'done'"
+                f"CREATE INDEX IF NOT EXISTS papers_{event} ON papers({column}) "
+                f"WHERE {column} IS NOT NULL"
             )
-        connection.execute(
-            "CREATE INDEX IF NOT EXISTS papers_completed ON papers(first_completed_at) "
-            "WHERE first_completed_at IS NOT NULL"
-        )
 
 
 def subscribe_journal(
@@ -297,7 +304,7 @@ class StatusChange:
     before_at: str
     after: str
     after_at: str
-    first_completion: bool = False
+    first_for_status: bool = False
 
 
 def set_status(db_path: Path, doi: str, status: str) -> bool:
@@ -348,10 +355,12 @@ def _move(
     if not unique:
         return 0, [], 0
     placeholders = ", ".join("?" for _ in unique)
+    event = MILESTONES.get(status)
+    column = f"first_{event}_at" if event else None
     with connect(db_path) as connection:
         connection.execute("BEGIN IMMEDIATE")
         rows = connection.execute(
-            f"SELECT doi, title, status, status_updated_at, first_completed_at "
+            f"SELECT doi, title, status, status_updated_at, {column or 'NULL'} AS first_at "
             f"FROM papers WHERE doi IN ({placeholders})",
             unique,
         ).fetchall()
@@ -384,20 +393,15 @@ def _move(
                 before_at=row["status_updated_at"],
                 after=status,
                 after_at=now,
-                first_completion=status == "done" and row["first_completed_at"] is None,
+                first_for_status=column is not None and row["first_at"] is None,
             )
             for row in movable
         ]
         if changes:
+            extra = f", {column} = COALESCE({column}, :stamp)" if column else ""
             connection.executemany(
-                """
-                UPDATE papers
-                SET status = ?, status_updated_at = ?,
-                    first_completed_at = COALESCE(first_completed_at, ?)
-                WHERE doi = ?
-                """,
-                [(status, now, now if change.first_completion else None, change.doi)
-                 for change in changes],
+                f"UPDATE papers SET status = :status, status_updated_at = :stamp{extra} WHERE doi = :doi",
+                [{"status": status, "stamp": now, "doi": change.doi} for change in changes],
             )
     return len(rows), changes, len(elsewhere)
 
@@ -418,15 +422,15 @@ def replay_changes(
                 if undo
                 else (change.before, change.before_at, change.after, change.after_at)
             )
+            extra = ""
+            if change.first_for_status:
+                column = f"first_{MILESTONES[change.after]}_at"
+                extra = f", {column} = :first_at"
             cursor = connection.execute(
-                """
-                UPDATE papers
-                SET status = ?, status_updated_at = ?,
-                    first_completed_at = CASE WHEN ? THEN ? ELSE first_completed_at END
-                WHERE doi = ? AND status = ? AND status_updated_at = ?
-                """,
-                (target, target_at, change.first_completion, None if undo else change.after_at,
-                 change.doi, expected, expected_at),
+                f"UPDATE papers SET status = :target, status_updated_at = :target_at{extra} "
+                "WHERE doi = :doi AND status = :expected AND status_updated_at = :expected_at",
+                {"target": target, "target_at": target_at, "first_at": None if undo else change.after_at,
+                 "doi": change.doi, "expected": expected, "expected_at": expected_at},
             )
             if cursor.rowcount:
                 applied.append(change)

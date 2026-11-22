@@ -33,8 +33,8 @@ def test_static_links_carry_the_version_so_upgrades_skip_stale_caches(tmp_path):
     for path in ("/", "/journals", "/settings"):
         page = client.get(path).text
         links = re.findall(r'(?:href|src)="(/static/[^"]+)"', page)
-        assert f"/static/style.css?v={__version__}" in links
-        assert all(link.endswith(f"?v={__version__}") for link in links)
+        assert re.fullmatch(rf"/static/style\.css\?v={re.escape(__version__)}-\d+", links[0])
+        assert all(link.endswith(f"?v={__version__}") for link in links[1:])
         assert client.get(links[0]).status_code == 200
 
 
@@ -85,7 +85,9 @@ def test_theme_switch_and_palette_are_served(tmp_path):
     assert 'aria-label="Font"' in page.text
     assert 'data-font="serif"' in page.text
     assert 'data-font="sans"' in page.text
-    assert "Serif is Source Serif 4. Sans is Source Sans 3." in page.text
+    assert page.context["theme_font"] == "serif"
+    assert page.text.index(">IBM Plex Serif</button>") < page.text.index(">IBM Plex Sans</button>")
+    assert ">IBM Plex Sans</button>" in page.text
     assert "System uses your light or dark theme to match this device." in page.text
     assert "data-theme-option=" not in page.text
     assert "prefers-color-scheme: dark" in page.text
@@ -101,7 +103,7 @@ def test_theme_switch_and_palette_are_served(tmp_path):
     assert 'aria-label="Light theme"' in appearance
     assert 'aria-label="Dark theme"' in appearance
     assert "appearance-modes" not in font
-    assert "Source Serif 4" in font
+    assert "IBM Plex Serif" in font
 
     css = client.get("/static/style.css")
     assert css.status_code == 200
@@ -139,7 +141,14 @@ def test_theme_switch_and_palette_are_served(tmp_path):
     assert "background: var(--ink)" not in css.text
     assert "background: var(--select)" in css.text
     assert "color: var(--select-ink)" in css.text
+    assert '--sans-stack: "IBM Plex Sans"' in css.text
     for name in (
+        "IBMPlexSans-Regular.woff2",
+        "IBMPlexSans-SemiBold.woff2",
+        "IBMPlexSans-Bold.woff2",
+        "IBMPlexSerif-Regular.woff2",
+        "IBMPlexSerif-SemiBold.woff2",
+        "IBMPlexSerif-Bold.woff2",
         "source-serif-4-latin.woff2",
         "source-serif-4-latin-ext.woff2",
         "source-sans-3-latin.woff2",
@@ -1812,7 +1821,7 @@ def test_undo_and_redo_paper_moves_from_the_header(tmp_path):
 
     page = client.post("/undo", data={"next": "/"})
     assert statuses()["new"] == ["10.1000/undo1", "10.1000/undo2"]
-    assert "Undid moving 2 papers to Read later. They are now in New." in page.text
+    assert "Undid moving 2 papers to To Read. They are now in New." in page.text
     page = client.post("/undo", data={"next": "/?q=Undo"})
     assert page.url.params["q"] == "Undo" and page.url.params["note"]
     assert statuses()["new"] == ["10.1000/undo0", "10.1000/undo1", "10.1000/undo2"]
@@ -1866,6 +1875,7 @@ def test_all_tab_lists_every_paper_outside_the_trash(tmp_path):
 
     page = client.get("/all").text
     nav = page[page.index('aria-label="Library"'):page.index("</nav>")]
+    assert nav.index('href="/later"') < nav.index('href="/reading"') < nav.index('href="/done"')
     assert nav.index('href="/dismissed"') < nav.index('href="/all"') < nav.index('href="/removed"')
     assert '<span class="count" data-count="all">3</span>' in nav
     assert "<h1>All</h1>" in page
@@ -1873,7 +1883,7 @@ def test_all_tab_lists_every_paper_outside_the_trash(tmp_path):
     papers = _paper_list(page)
     assert "All paper 3" not in papers
     assert 'data-status-tag="new">New</span>' in papers
-    assert 'data-status-tag="reading">Reading</span>' in papers
+    assert 'data-status-tag="reading">In Progress</span>' in papers
     assert 'data-status-tag="dismissed">Dismissed</span>' in papers
 
     # Each card offers every status except the one the paper is in now.

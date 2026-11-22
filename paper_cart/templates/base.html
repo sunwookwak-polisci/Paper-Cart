@@ -55,7 +55,7 @@
       root.dataset.font = font;
     })();
   </script>
-  <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
+  <link rel="stylesheet" href="/static/style.css?v={{ app_version }}-{{ stylesheet_revision() if stylesheet_revision is defined else "nav2" }}">
   <script src="/static/theme.js?v={{ app_version }}"></script>
   {% block head %}{% endblock %}
 </head>
@@ -105,9 +105,8 @@
               </div>
               <div class="theme-group" role="radiogroup" aria-label="Font">
                 <p class="theme-group-label">Font</p>
-                <button type="button" role="radio" data-font="serif" aria-checked="false">Serif</button>
-                <button type="button" role="radio" data-font="sans" aria-checked="false">Sans</button>
-                <p class="theme-hint">Serif is Source Serif 4. Sans is Source Sans 3.</p>
+                <button type="button" role="radio" data-font="serif" aria-checked="false">IBM Plex Serif</button>
+                <button type="button" role="radio" data-font="sans" aria-checked="false">IBM Plex Sans</button>
               </div>
             </div>
           </div>
@@ -131,15 +130,26 @@
     <p class="banner update-notice" data-update-notice>Paper Cart {{ newer_version }} is available. Run <code>brew upgrade paper-cart</code> in Terminal, then start Paper Cart again.</p>
     {% endif %}
     <nav aria-label="Library">
-      {% for key, href, label in nav %}
-      {% if key == "removed" %}
-      <a class="trash-link" href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ trash() }}<span class="visually-hidden">{{ label }}</span> <span class="count" data-count="{{ key }}">{{ counts[key] }}</span></a>
-      {% else %}
-      <a href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ label }} <span class="count" data-count="{{ key }}">{{ counts[key] }}</span></a>
+      <div class="library-sections" role="group" aria-label="Sections">
+        <a href="/" {% if active in counts %}aria-current="true"{% endif %}>Papers</a>
+        <a href="/journals" {% if active == "journals" %}aria-current="page"{% endif %}>Journals</a>
+        <a href="/insights" {% if active == "insights" %}aria-current="page"{% endif %}>Insights</a>
+      </div>
+      {% if active in counts %}
+      <div class="library-lists" role="group" aria-label="Paper lists">
+        {% for group in (nav[:3], nav[3:]) %}
+        <div class="library-list-group">
+          {% for key, href, label in group %}
+          {% if key == "removed" %}
+          <a class="trash-link" href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ trash() }}<span class="visually-hidden">{{ label }}</span> <span class="count" data-count="{{ key }}">{{ counts[key] }}</span></a>
+          {% else %}
+          <a href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ label }} <span class="count" data-count="{{ key }}">{{ counts[key] }}</span></a>
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
       {% endif %}
-      {% endfor %}
-      <a class="journals-link" href="/journals" {% if active == "journals" %}aria-current="page"{% endif %}>Journals</a>
-      <a href="/insights" {% if active == "insights" %}aria-current="page"{% endif %}>Insights</a>
     </nav>
     {% if history.note %}
     <p class="banner history-note" role="status" data-history-note>{{ history.note }}</p>
