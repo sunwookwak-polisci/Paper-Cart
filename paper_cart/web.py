@@ -29,10 +29,12 @@ from paper_cart.config import (
 from paper_cart.crossref import (
     CrossrefError,
     fetch_papers as default_fetch,
+    fetch_citations as default_fetch_citations,
     fetch_recent_issues as default_fetch_issues,
     normalize_issns,
     search_journals as default_search,
 )
+from paper_cart.citation import STYLES as CITATION_STYLES, cite, normalize_style
 from paper_cart.history import History
 from paper_cart.insights import Insights, insights_csv, reading_insights
 from paper_cart.export import (
@@ -145,7 +147,12 @@ STATUS_GROUPS = (
 
 
 def create_app(
-    data_dir: Path | None = None, *, search=None, fetch=None, fetch_issues=None
+    data_dir: Path | None = None,
+    *,
+    search=None,
+    fetch=None,
+    fetch_issues=None,
+    fetch_citations=None,
 ) -> FastAPI:
     if data_dir is None:
         folder, source = resolve_data_dir(None)
@@ -188,6 +195,8 @@ def create_app(
     app.state.search_journals = search or default_search
     app.state.fetch_papers = fetch or default_fetch
     app.state.fetch_recent_issues = fetch_issues or default_fetch_issues
+    # A test that fakes the paper fetch makes no citation lookups unless it fakes those too.
+    app.state.fetch_citations = fetch_citations or (default_fetch_citations if fetch is None else None)
     app.state.shutdown = None
     app.state.newer_version = None
     app.state.history = History()
@@ -548,6 +557,11 @@ def create_app(
             )
         return RedirectResponse("/settings?saved=1", status_code=303)
 
+    @app.post("/settings/citation")
+    def save_citation_style(request: Request, style: str = Form("")):
+        set_setting(request.app.state.db_path, "citation_style", normalize_style(style))
+        return RedirectResponse("/settings?citation=1#citation-style", status_code=303)
+
     @app.get("/settings/libraries/export")
     def export_library(request: Request):
         try:
@@ -761,6 +775,7 @@ def _run_refresh(app: FastAPI, journals: list[Journal] | None, *, name: str) -> 
                             else list_journals(app.state.db_path, subscribed_only=True),
                             fetch=app.state.fetch_papers,
                             mailto=mailto,
+                            fetch_citations=app.state.fetch_citations,
                         )
                     except LibraryUnavailable:
                         app.state.last_report = _report_error(
@@ -854,6 +869,7 @@ def _papers(request: Request, status: str):
     if group_sort not in {"date", "alpha", "custom"}:
         group_sort = "date"
     papers = list_papers(db_path, status, query=query)
+    style = _citation_style(db_path)
     order_journals = list_journals_by_rank(db_path) if grouped else []
     refreshing = bool(request.app.state.refreshing)
     show_report = request.query_params.get("updated") == "1"
@@ -883,6 +899,8 @@ def _papers(request: Request, status: str):
             show_report=show_report,
             busy=request.query_params.get("busy") == "1",
             moved_elsewhere=moved_elsewhere,
+            citations={paper.doi: cite(paper, style) for paper in papers},
+            citation_label=CITATION_STYLES[style],
         ),
     )
     # The Back button must show the lists as they are now, not as they were.
@@ -998,6 +1016,8 @@ def _settings_view(
         )
     if not error:
         notice = _library_action_notice(request, active_library)
+    if request.query_params.get("citation") == "1" and not error and not notice:
+        notice = "Saved the citation style."
     if request.query_params.get("saved") == "1" and not error and not notice:
         if pending is None:
             notice = "Saved."
@@ -1016,7 +1036,16 @@ def _settings_view(
         libraries=libraries,
         active_library=active_library,
         import_name=import_name,
+        citation_styles=CITATION_STYLES,
+        citation_style=_citation_style(request.app.state.db_path),
     )
+
+
+def _citation_style(db_path: Path) -> str:
+    try:
+        return normalize_style(get_setting(db_path, "citation_style", "apa"))
+    except LibraryUnavailable:
+        return "apa"
 
 
 _APPEARANCE_MODES = ("light", "dark", "system")
