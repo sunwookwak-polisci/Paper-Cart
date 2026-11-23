@@ -1066,6 +1066,27 @@ button.arrow-button:disabled {
   margin: 0.7rem 0;
 }
 
+.citation-form fieldset {
+  margin: 0 0 0.8rem;
+  padding: 0;
+  border: 0;
+}
+
+.citation-form label.check { margin: 0.45rem 0; }
+
+.citation-form input[type="radio"] { accent-color: var(--ink); }
+
+.meta .copy-citation {
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.55rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  vertical-align: 0.05em;
+  white-space: nowrap;
+}
+
+.meta .copy-citation:hover { color: var(--ink); }
+
 .library-list {
   list-style: none;
   margin: 0 0 1.25rem;

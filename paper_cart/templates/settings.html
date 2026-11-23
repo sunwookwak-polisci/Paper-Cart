@@ -24,6 +24,20 @@
     <button class="primary" type="submit">Save</button>
   </div>
 </form>
+<h2 id="citation-style">Citation style</h2>
+<p>Copy citation on each paper uses this style.</p>
+<form class="settings-form citation-form" method="post" action="/settings/citation">
+  <fieldset>
+    <legend class="visually-hidden">Citation style</legend>
+    {% for value, label in citation_styles.items() %}
+    <label class="check">
+      <input type="radio" name="style" value="{{ value }}" {% if value == citation_style %}checked{% endif %}>
+      {{ label }}
+    </label>
+    {% endfor %}
+  </fieldset>
+  <button class="primary" type="submit">Save</button>
+</form>
 <h2>Library files</h2>
 <p>These changes happen now.</p>
 {% if libraries %}

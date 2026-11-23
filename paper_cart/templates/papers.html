@@ -103,6 +103,10 @@
     {% if show_journal %}{{ paper.journal_title }} · {% endif %}
     {% if paper.published_date %}{{ paper.published_date }} · {% endif %}
     <a href="{{ paper.url }}" target="_blank" rel="noopener noreferrer">{{ paper.doi }}</a>
+    {%- set citation = citations[paper.doi] %}
+    <button type="button" class="copy-citation" hidden data-copy-citation
+      data-citation-text="{{ citation.text }}" data-citation-html="{{ citation.html }}"
+      title="Copy a citation in {{ citation_label }} style. Choose the style in Settings.">Copy citation</button>
   </p>
   {% if paper.abstract %}
   <details class="abstract"{% if abstracts_open %} open{% endif %}>
@@ -160,6 +164,7 @@
 <script src="/static/status.js?v={{ app_version }}"></script>
 <script src="/static/order.js?v={{ app_version }}"></script>
 <script src="/static/bulk.js?v={{ app_version }}"></script>
+<script src="/static/citation.js?v={{ app_version }}"></script>
 <script src="/static/abstracts.js?v={{ app_version }}"></script>
 <script src="/static/journals-fold.js?v={{ app_version }}"></script>
 {% endblock %}

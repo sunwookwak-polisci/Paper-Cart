@@ -1953,3 +1953,64 @@ def test_journal_groups_fold_and_are_remembered(tmp_path):
     page = client.get("/")
     assert 'data-journal="Alpha Journal" open>' in page.text
     assert 'data-journal="Beta Journal" open>' in page.text
+
+
+def test_copy_citation_follows_the_style_chosen_in_settings(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app(tmp_path, search=_search, fetch=_fetch)
+    journal = subscribe_journal(app.state.db_path, title="Example Journal", issns=("1234-5678",), publisher="")
+    hit = _fetch(("1234-5678",), None)[0]
+    upsert_papers(
+        app.state.db_path,
+        journal,
+        "Example Journal",
+        [PaperHit(**{**hit.__dict__, "citation": {"authors": [{"given": "Ada", "family": "Lovelace"}], "volume": "3", "issue": "1", "page": "10-20"}})],
+    )
+    client = TestClient(app, base_url="http://127.0.0.1")
+
+    page = client.get("/").text
+    assert 'src="/static/citation.js' in page
+    assert "data-copy-citation" in page
+    # Copying needs the script, so the button starts hidden.
+    assert 'class="copy-citation" hidden' in page
+    assert (
+        'data-citation-text="Lovelace, A. (2026). A real paper. Example Journal, 3(1), 10–20. '
+        'https://doi.org/10.1000/example"'
+    ) in page
+    assert 'title="Copy a citation in APA 7th style. Choose the style in Settings."' in page
+
+    settings = client.get("/settings").text
+    assert 'id="citation-style"' in settings
+    assert 'value="apa" checked' in settings
+
+    saved = client.post("/settings/citation", data={"style": "chicago"}, follow_redirects=False)
+    assert saved.status_code == 303
+    assert saved.headers["location"] == "/settings?citation=1#citation-style"
+    assert "Saved the citation style." in client.get("/settings?citation=1").text
+    assert 'value="chicago" checked' in client.get("/settings").text
+    page = client.get("/").text
+    assert (
+        'data-citation-text="Lovelace, Ada. 2026. “A real paper.” Example Journal 3 (1): 10–20. '
+        'https://doi.org/10.1000/example."'
+    ) in page
+    assert "&lt;i&gt;Example Journal&lt;/i&gt;" in page
+
+    # Anything unknown is stored as APA.
+    client.post("/settings/citation", data={"style": "<script>"})
+    assert 'value="apa" checked' in client.get("/settings").text
+
+    blocked = client.post(
+        "/settings/citation", data={"style": "chicago"}, headers={"Origin": "https://example.com"}
+    )
+    assert blocked.status_code == 403
+    assert 'value="apa" checked' in client.get("/settings").text
+
+
+def test_citation_script_is_served(tmp_path):
+    from fastapi.testclient import TestClient
+
+    client = TestClient(create_app(tmp_path, search=_search, fetch=_fetch), base_url="http://127.0.0.1")
+    script = client.get("/static/citation.js")
+    assert script.status_code == 200
+    assert "ClipboardItem" in script.text

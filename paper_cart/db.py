@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS papers (
     status_updated_at TEXT NOT NULL,
     first_completed_at TEXT,
     first_started_at TEXT,
-    first_sorted_at TEXT
+    first_sorted_at TEXT,
+    citation_data TEXT
 );
 
 CREATE INDEX IF NOT EXISTS papers_status ON papers(status);
@@ -94,6 +95,8 @@ class Paper:
     published_date: str | None
     url: str
     status: str
+    # JSON from crossref.citation_fields, or None until Crossref has been asked.
+    citation_data: str | None = None
 
 
 def utcnow() -> str:
@@ -148,6 +151,8 @@ def init_db(db_path: Path) -> None:
         if "sort_rank" not in columns:
             connection.execute("ALTER TABLE journals ADD COLUMN sort_rank INTEGER")
         paper_columns = {row[1] for row in connection.execute("PRAGMA table_info(papers)")}
+        if "citation_data" not in paper_columns:
+            connection.execute("ALTER TABLE papers ADD COLUMN citation_data TEXT")
         for status, event in MILESTONES.items():
             column = f"first_{event}_at"
             if column not in paper_columns:
@@ -237,6 +242,8 @@ def upsert_papers(
     now = utcnow()
     with connect(db_path) as connection:
         for paper in papers:
+            fields = getattr(paper, "citation", None)
+            citation = json.dumps(fields, ensure_ascii=False) if fields is not None else None
             existing = connection.execute(
                 "SELECT 1 FROM papers WHERE doi = ?",
                 (paper.doi,),
@@ -246,8 +253,9 @@ def upsert_papers(
                     """
                     INSERT INTO papers (
                         doi, journal_id, journal_title, title, authors, abstract,
-                        published_date, url, first_seen_at, status, status_updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)
+                        published_date, url, first_seen_at, status, status_updated_at,
+                        citation_data
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)
                     """,
                     (
                         paper.doi,
@@ -260,6 +268,7 @@ def upsert_papers(
                         paper.url,
                         now,
                         now,
+                        citation,
                     ),
                 )
                 added += 1
@@ -271,7 +280,8 @@ def upsert_papers(
                     authors = ?,
                     abstract = COALESCE(?, abstract),
                     published_date = COALESCE(?, published_date),
-                    url = ?
+                    url = ?,
+                    citation_data = COALESCE(?, citation_data)
                 WHERE doi = ?
                 """,
                 (
@@ -280,6 +290,7 @@ def upsert_papers(
                     paper.abstract,
                     paper.published_date,
                     paper.url,
+                    citation,
                     paper.doi,
                 ),
             )
@@ -476,9 +487,37 @@ def list_papers(db_path: Path, status: str, *, query: str = "") -> list[Paper]:
             published_date=row["published_date"],
             url=row["url"],
             status=row["status"],
+            citation_data=row["citation_data"],
         )
         for row in rows
     ]
+
+
+def dois_missing_citations(db_path: Path, limit: int) -> list[str]:
+    """Papers saved before Paper Cart kept citation fields, newest first."""
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT doi FROM papers
+            WHERE citation_data IS NULL AND status != 'removed'
+            ORDER BY first_seen_at DESC, doi
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [row["doi"] for row in rows]
+
+
+def save_citations(db_path: Path, asked: Sequence[str], found: dict[str, dict]) -> None:
+    """Store looked-up citation fields. A DOI Crossref did not know is stored as {}
+    so it is not asked about again; its citation uses the saved names alone."""
+    with connect(db_path) as connection:
+        for doi in asked:
+            fields = found.get(doi, {})
+            connection.execute(
+                "UPDATE papers SET citation_data = ? WHERE doi = ? AND citation_data IS NULL",
+                (json.dumps(fields, ensure_ascii=False), doi),
+            )
 
 
 def status_counts(db_path: Path) -> dict[str, int]:

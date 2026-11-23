@@ -13,6 +13,9 @@ from urllib.parse import urlencode
 import httpx
 
 API = "https://api.crossref.org"
+CITATION_SELECT = "subtitle,volume,issue,page,article-number"
+# DOIs asked about in one citation lookup; Crossref joins repeated doi filters with OR.
+CITATION_BATCH = 40
 USER_AGENT = "PaperCart/0.1"
 _TAG = re.compile(r"<[^>]+>")
 _WHITESPACE = re.compile(r"\s+")
@@ -41,6 +44,8 @@ class PaperHit:
     volume: str | None = None
     issue: str | None = None
     issue_date: str | None = None
+    # Structured names, volume, issue and pages for citations; see citation_fields.
+    citation: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -121,7 +126,7 @@ def works_url(
         "filter": f"issn:{issn},type:journal-article,{date_filter}:{start.isoformat()}",
         "rows": str(rows),
         "cursor": cursor,
-        "select": "DOI,title,author,abstract,URL,issued,container-title,type",
+        "select": f"DOI,title,author,abstract,URL,issued,container-title,type,{CITATION_SELECT}",
     }
     if mailto:
         params["mailto"] = mailto
@@ -323,7 +328,97 @@ def parse_work(item: dict) -> PaperHit | None:
         volume=volume,
         issue=issue,
         issue_date=issue_date,
+        citation=citation_fields(item),
     )
+
+
+def citation_fields(item: dict) -> dict:
+    """The parts of a Crossref work a citation needs beyond the stored columns."""
+    fields: dict = {"authors": citation_authors(item.get("author"))}
+    subtitle = _first_text(item.get("subtitle"))
+    if subtitle:
+        fields["subtitle"] = _WHITESPACE.sub(" ", html.unescape(_TAG.sub("", subtitle))).strip()
+    volume, issue, _ = _issue_fields(item)
+    for key, value in (
+        ("volume", volume),
+        ("issue", issue),
+        ("page", _token(item.get("page"))),
+        ("article_number", _token(item.get("article-number"))),
+    ):
+        if value:
+            fields[key] = value
+    return fields
+
+
+def citation_authors(authors: object) -> list[dict]:
+    if not isinstance(authors, list):
+        return []
+    names: list[dict] = []
+    for author in authors:
+        if not isinstance(author, dict):
+            continue
+        literal = str(author.get("name") or "").strip()
+        if literal:
+            names.append({"name": literal})
+            continue
+        name = {
+            key: str(author.get(key) or "").strip()
+            for key in ("given", "family", "suffix")
+            if str(author.get(key) or "").strip()
+        }
+        if name.get("family") or name.get("given"):
+            names.append(name)
+    return names
+
+
+def citations_url(dois: Iterable[str], *, mailto: str | None = None) -> str:
+    dois = list(dois)
+    params = {
+        "filter": ",".join(f"doi:{doi}" for doi in dois),
+        "rows": str(len(dois)),
+        "select": f"DOI,author,{CITATION_SELECT}",
+    }
+    if mailto:
+        params["mailto"] = mailto
+    return f"{API}/works?{urlencode(params)}"
+
+
+def fetch_citations(
+    dois: Iterable[str],
+    *,
+    mailto: str | None = None,
+    client: httpx.Client | None = None,
+    pause: Callable[[], None] | None = None,
+) -> dict[str, dict]:
+    """Citation fields for papers saved before Paper Cart kept them, by DOI.
+
+    A DOI Crossref does not return is left out of the result.
+    """
+    if pause is None:
+        delay = 0.05 if mailto else 1.0
+
+        def pause() -> None:
+            time.sleep(delay)
+
+    wanted = [normalize_doi(doi) for doi in dois if normalize_doi(doi)]
+    owns_client = client is None
+    client = client or _client(mailto)
+    found: dict[str, dict] = {}
+    try:
+        for start in range(0, len(wanted), CITATION_BATCH):
+            batch = wanted[start : start + CITATION_BATCH]
+            payload = _get_json(client, citations_url(batch, mailto=mailto), mailto)
+            pause()
+            for item in (payload.get("message") or {}).get("items") or []:
+                if not isinstance(item, dict):
+                    continue
+                doi = normalize_doi(str(item.get("DOI") or ""))
+                if doi in batch:
+                    found[doi] = citation_fields(item)
+    finally:
+        if owns_client:
+            client.close()
+    return found
 
 
 def format_authors(authors: object) -> str:

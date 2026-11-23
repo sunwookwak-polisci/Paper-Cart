@@ -10,8 +10,15 @@ from pathlib import Path
 
 import httpx
 
-from paper_cart.crossref import CrossrefError, PaperHit, user_agent
-from paper_cart.db import Journal, mark_checked, upsert_papers, utcnow
+from paper_cart.crossref import CITATION_BATCH, CrossrefError, PaperHit, user_agent
+from paper_cart.db import (
+    Journal,
+    dois_missing_citations,
+    mark_checked,
+    save_citations,
+    upsert_papers,
+    utcnow,
+)
 
 
 @dataclass
@@ -25,6 +32,8 @@ FIRST_LOOK_BACK = timedelta(days=30)
 # Crossref can list a paper hours or days after the date it gives it, so each
 # check reaches back past the last one. A paper seen twice keeps its list.
 OVERLAP = timedelta(days=7)
+# Older papers asked about per update, so a large library fills in over a few launches.
+CITATION_LOOKUPS = 400
 
 
 def window_start(last_checked_at: str | None, today: date) -> date:
@@ -40,6 +49,7 @@ def refresh_journals(
     fetch: Callable[..., list[PaperHit]],
     mailto: str | None,
     today: date | None = None,
+    fetch_citations: Callable[..., dict[str, dict]] | None = None,
 ) -> RefreshReport:
     today = today or date.today()
     report = RefreshReport()
@@ -63,4 +73,31 @@ def refresh_journals(
             report.added += upsert_papers(db_path, journal.id, journal.title, papers)
             mark_checked(db_path, journal.id, began)
             report.checked += 1
+        if fetch_citations is not None:
+            backfill_citations(db_path, fetch=fetch_citations, mailto=mailto, client=client)
     return report
+
+
+def backfill_citations(
+    db_path: Path,
+    *,
+    fetch: Callable[..., dict[str, dict]],
+    mailto: str | None,
+    client: httpx.Client | None = None,
+) -> int:
+    """Fetch volume, issue, pages and split names for papers saved before Paper Cart kept them.
+
+    A failed lookup is quiet: those papers keep a citation built from the saved
+    names and are asked about again on the next update. Returns papers stored.
+    """
+    dois = dois_missing_citations(db_path, CITATION_LOOKUPS)
+    stored = 0
+    for start in range(0, len(dois), CITATION_BATCH):
+        batch = dois[start : start + CITATION_BATCH]
+        try:
+            found = fetch(batch, mailto=mailto, client=client)
+        except (CrossrefError, httpx.HTTPError, json.JSONDecodeError):
+            break
+        save_citations(db_path, batch, found)
+        stored += len(batch)
+    return stored

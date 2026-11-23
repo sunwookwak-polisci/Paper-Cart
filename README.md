@@ -159,6 +159,7 @@ The papers CSV contains the visible papers with metadata, the UTC activity times
 - Each list has a **Keywords** box. Every word you type must appear in the title, authors, abstract, journal name, or DOI.
 - Tick the box beside articles, or **Select all shown**, to move many at once. Combined with a keyword search, this files or dismisses a whole batch in one step.
 - **Copy DOIs** puts those selected articles on the clipboard, one DOI per line, ready to paste into Zotero's Add by identifier.
+- **Copy citation** beside an article's DOI copies its reference in APA 7th or Chicago author-date 17th. Choose the style under **Citation style** in Settings. Pasted into Word or Google Docs, the journal name keeps its italics. Titles are copied as the journal printed them, so check the capitalization your style asks for.
 - Click **Abstract** under an article to open its abstract, or turn on **Expand abstracts** to open them all.
 - Articles are listed newest first. Turn on **Group by journal** to group them, then order the groups by **Date**, **Alphabetical**, or **Custom**. With Custom, drag a journal by its handle, or use the arrows, to set your own order.
 
