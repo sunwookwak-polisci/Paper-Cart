@@ -1,6 +1,5 @@
 import json
 import subprocess
-import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,9 +12,8 @@ NOTICE = "Paper Cart 0.1.1 is available. Run brew upgrade paper-cart."
 
 
 @pytest.fixture(autouse=True)
-def no_release_lookup(monkeypatch, tmp_path):
-    """Keep tests off the network and out of the real per-user folder."""
-    monkeypatch.setattr(homebrew, "default_data_dir", lambda: tmp_path / "user-data")
+def no_release_lookup(monkeypatch):
+    """Keep tests off the network."""
 
     def fail(*args, **kwargs):
         raise AssertionError("GitHub should not be asked unless a test fakes it")
@@ -282,7 +280,7 @@ def test_newer_release_is_announced_before_the_tap_is_updated(monkeypatch, tmp_p
     assert kwargs["timeout"] <= 3
 
 
-def test_release_is_asked_for_at_most_once_a_day(monkeypatch, tmp_path, capsys):
+def test_release_is_asked_for_on_every_launch(monkeypatch, tmp_path, capsys):
     _forbid_brew(monkeypatch)
     monkeypatch.setattr(homebrew, "__version__", "0.1.0")
     libexec = _cellar(tmp_path)
@@ -290,16 +288,14 @@ def test_release_is_asked_for_at_most_once_a_day(monkeypatch, tmp_path, capsys):
     calls = _fake_release(monkeypatch, "v0.1.1")
     homebrew.announce_homebrew_update(libexec)
     homebrew.announce_homebrew_update(libexec)
-    assert len(calls) == 1
+    assert len(calls) == 2
     assert capsys.readouterr().out == (NOTICE + "\n") * 2
 
-    saved = tmp_path / "user-data" / homebrew.RELEASE_CHECK_FILE
-    saved.write_text(json.dumps({"checked": time.time() - 25 * 60 * 60, "version": "0.1.1"}))
     _fake_release(monkeypatch, "v0.1.2")
     assert homebrew.newer_homebrew_version(libexec) == "0.1.2"
 
 
-def test_a_failed_release_lookup_is_quiet_and_not_retried_that_day(monkeypatch, tmp_path, capsys):
+def test_a_failed_release_lookup_is_quiet_and_retried_next_launch(monkeypatch, tmp_path, capsys):
     _forbid_brew(monkeypatch)
     monkeypatch.setattr(homebrew, "__version__", "0.1.0")
     libexec = _cellar(tmp_path)
@@ -311,14 +307,23 @@ def test_a_failed_release_lookup_is_quiet_and_not_retried_that_day(monkeypatch, 
         raise httpx.ConnectError("offline")
 
     monkeypatch.setattr(homebrew.httpx, "get", offline)
-    homebrew.announce_homebrew_update(libexec)
-    homebrew.announce_homebrew_update(libexec)
-    assert len(calls) == 1
+    assert homebrew.announce_homebrew_update(libexec) is None
+    assert homebrew.announce_homebrew_update(libexec) is None
+    assert len(calls) == 2
+
+    def slow(url, **kwargs):
+        raise httpx.ReadTimeout("slow")
+
+    monkeypatch.setattr(homebrew.httpx, "get", slow)
+    assert homebrew.announce_homebrew_update(libexec) is None
     for tag, status in (("v0.1.1", 404), (None, 200), ("v0.1.1\nrm -rf /", 200)):
-        (tmp_path / "user-data" / homebrew.RELEASE_CHECK_FILE).unlink()
         _fake_release(monkeypatch, tag, status)
-        homebrew.announce_homebrew_update(libexec)
+        assert homebrew.announce_homebrew_update(libexec) is None
     assert capsys.readouterr().out == ""
+
+    _fake_release(monkeypatch, "v0.1.1")
+    assert homebrew.announce_homebrew_update(libexec) == "0.1.1"
+    assert capsys.readouterr().out == NOTICE + "\n"
 
 
 def test_newer_tap_formula_skips_the_release_lookup(monkeypatch, tmp_path, capsys):
@@ -328,7 +333,6 @@ def test_newer_tap_formula_skips_the_release_lookup(monkeypatch, tmp_path, capsy
     _receipt(libexec, _write_formula(libexec, "0.1.1"))
     homebrew.announce_homebrew_update(libexec)
     assert capsys.readouterr().out == NOTICE + "\n"
-    assert not (tmp_path / "user-data" / homebrew.RELEASE_CHECK_FILE).exists()
 
 
 def test_main_prints_the_notice_then_starts_on_localhost(monkeypatch, capsys, tmp_path):
