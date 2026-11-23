@@ -965,7 +965,7 @@ button.arrow-button:disabled {
 
 .card-head h3 { margin-top: 0; font-size: 1rem; }
 .card .authors, .card .meta { font-size: 0.875rem; }
-.card .abstract, .card .abstract summary { font-size: 0.75rem; }
+.card .abstract, .card .abstract summary { font-size: 0.875rem; }
 
 .bulk-pick {
   flex: none;
